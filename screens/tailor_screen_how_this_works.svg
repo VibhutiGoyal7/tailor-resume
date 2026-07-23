@@ -1,0 +1,38 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+  <ellipse cx="350" cy="70" rx="65" ry="52" fill="#E4EAEC" transform="rotate(9 350 70)"/>
+  <circle cx="24" cy="120" r="6" fill="#D6E1E4"/>
+
+  <path d="M40 62 L28 72 L40 82" fill="none" stroke="#1D2226" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="32" y="132" font-size="21" font-weight="500" fill="#1D2226">How this works</text>
+
+  <!-- match score dial, hero -->
+  <g transform="translate(145,166)">
+    <circle cx="50" cy="50" r="50" fill="#DDE6E9"/>
+    <circle cx="50" cy="50" r="50" fill="none" stroke="#2F4858" stroke-width="6" stroke-dasharray="230 84" stroke-linecap="round" transform="rotate(-90 50 50)"/>
+    <text x="50" y="58" text-anchor="middle" font-size="22" font-weight="500" fill="#2F4858">92%</text>
+  </g>
+  <text x="195" y="292" text-anchor="middle" font-size="13" fill="#7B8681">Every resume gets a match score</text>
+  <text x="195" y="310" text-anchor="middle" font-size="13" fill="#7B8681">against the job you're applying for.</text>
+
+  <!-- step 1 -->
+  <circle cx="46" cy="360" r="14" fill="#DDE6E9"/>
+  <text x="46" y="365" text-anchor="middle" font-size="13" font-weight="500" fill="#2F4858">1</text>
+  <text x="70" y="356" font-size="14" font-weight="500" fill="#1D2226">We read the job description</text>
+  <text x="70" y="374" font-size="12" fill="#7B8681">and figure out what it's really asking for</text>
+
+  <!-- step 2 -->
+  <circle cx="46" cy="418" r="14" fill="#DDE6E9"/>
+  <text x="46" y="423" text-anchor="middle" font-size="13" font-weight="500" fill="#2F4858">2</text>
+  <text x="70" y="414" font-size="14" font-weight="500" fill="#1D2226">We find your best-fit experience</text>
+  <text x="70" y="432" font-size="12" fill="#7B8681">from everything in your bank — you confirm it</text>
+
+  <!-- step 3 -->
+  <circle cx="46" cy="476" r="14" fill="#DDE6E9"/>
+  <text x="46" y="481" text-anchor="middle" font-size="13" font-weight="500" fill="#2F4858">3</text>
+  <text x="70" y="472" font-size="14" font-weight="500" fill="#1D2226">We write it in their language</text>
+  <text x="70" y="490" font-size="12" fill="#7B8681">every line traces back to something you wrote</text>
+
+  <path d="M32 540 H326 C334 540 342 546 342 556 V578 C342 590 334 596 326 596 H48 C38 596 32 588 32 578 Z" fill="#2F4858"/>
+  <text x="187" y="574" text-anchor="middle" font-size="15" font-weight="500" fill="#F1F3F4">Got it</text>
+</svg>

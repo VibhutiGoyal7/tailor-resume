@@ -1,0 +1,53 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+  <ellipse cx="350" cy="60" rx="60" ry="50" fill="#E4EAEC" transform="rotate(10 350 60)"/>
+  <circle cx="20" cy="100" r="6" fill="#D6E1E4"/>
+
+  <text x="32" y="68" font-size="22" font-weight="500" fill="#1D2226">Experience bank</text>
+  <circle cx="358" cy="60" r="18" fill="#2F4858"/>
+  <path d="M358 52 V68 M350 60 H366" stroke="#F1F3F4" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Roles section -->
+  <text x="32" y="112" font-size="13" font-weight="500" fill="#7B8681">ROLES</text>
+  <g transform="rotate(-1 195 148)">
+    <path d="M32 128 H358 C363 128 368 132 368 138 V158 C368 164 363 168 358 168 H36 C30 168 26 164 26 158 V138 C26 132 30 128 32 128 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+    <text x="44" y="150" font-size="14" font-weight="500" fill="#1D2226">Senior Engineer, Acme Co.</text>
+    <text x="44" y="164" font-size="11" fill="#7B8681">2021 — Present</text>
+  </g>
+  <g transform="rotate(1 195 190)">
+    <path d="M32 170 H358 C363 170 368 174 368 180 V200 C368 206 363 210 358 210 H36 C30 210 26 206 26 200 V180 C26 174 30 170 32 170 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+    <text x="44" y="192" font-size="14" font-weight="500" fill="#1D2226">Mobile Developer, Nimbus</text>
+    <text x="44" y="206" font-size="11" fill="#7B8681">2019 — 2021</text>
+  </g>
+
+  <!-- Projects section -->
+  <text x="32" y="240" font-size="13" font-weight="500" fill="#7B8681">PROJECTS</text>
+  <g transform="rotate(-1 195 276)">
+    <path d="M32 256 H358 C363 256 368 260 368 266 V286 C368 292 363 296 358 296 H36 C30 296 26 292 26 286 V266 C26 260 30 256 32 256 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+    <text x="44" y="278" font-size="14" font-weight="500" fill="#1D2226">On-device CV pipeline</text>
+    <text x="44" y="292" font-size="11" fill="#7B8681">TensorFlow Lite, personal project</text>
+  </g>
+
+  <!-- Education section -->
+  <text x="32" y="330" font-size="13" font-weight="500" fill="#7B8681">EDUCATION</text>
+  <g transform="rotate(1 195 366)">
+    <path d="M32 346 H358 C363 346 368 350 368 356 V376 C368 382 363 386 358 386 H36 C30 386 26 382 26 376 V356 C26 350 30 346 32 346 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+    <text x="44" y="368" font-size="14" font-weight="500" fill="#1D2226">B.Tech, Computer Science</text>
+    <text x="44" y="382" font-size="11" fill="#7B8681">2015 — 2019</text>
+  </g>
+
+  <!-- Skills section -->
+  <text x="32" y="420" font-size="13" font-weight="500" fill="#7B8681">SKILLS</text>
+  <g>
+    <path d="M32 434 H120 C126 434 130 438 130 444 V462 C130 468 126 472 120 472 H32 Z" fill="#DDE6E9"/>
+    <text x="76" y="458" text-anchor="middle" font-size="12" fill="#2F4858">React Native</text>
+    <path d="M136 434 H210 C216 434 220 438 220 444 V462 C220 468 216 472 210 472 H136 Z" fill="#DDE6E9"/>
+    <text x="178" y="458" text-anchor="middle" font-size="12" fill="#2F4858">Flutter</text>
+    <path d="M226 434 H310 C316 434 320 438 320 444 V462 C320 468 316 472 310 472 H226 Z" fill="#DDE6E9"/>
+    <text x="268" y="458" text-anchor="middle" font-size="12" fill="#2F4858">Kotlin</text>
+  </g>
+
+  <!-- FAB -->
+  <circle cx="330" cy="750" r="28" fill="#2F4858"/>
+  <path d="M330 738 V762 M318 750 H342" stroke="#F1F3F4" stroke-width="3" stroke-linecap="round"/>
+</svg>

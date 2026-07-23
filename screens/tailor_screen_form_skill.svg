@@ -1,0 +1,23 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+  <ellipse cx="40" cy="90" rx="70" ry="55" fill="#EAEFF0" transform="rotate(-10 40 90)"/>
+
+  <path d="M40 62 L28 72 L40 82" fill="none" stroke="#1D2226" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="32" y="132" font-size="21" font-weight="500" fill="#1D2226">Add a skill</text>
+
+  <text x="32" y="168" font-size="12" fill="#7B8681">Skill name</text>
+  <path d="M32 176 H358 C362 176 366 180 366 184 V208 C366 212 362 216 358 216 H36 C32 216 28 212 28 208 V184 C28 180 32 176 32 176 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="200" font-size="13" fill="#A9B2B6">React Native</text>
+
+  <text x="32" y="238" font-size="12" fill="#7B8681">Category</text>
+  <path d="M32 246 H358 C362 246 366 250 366 254 V278 C366 282 362 286 358 286 H36 C32 286 28 282 28 278 V254 C28 250 32 246 32 246 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="270" font-size="13" fill="#A9B2B6">Mobile development</text>
+
+  <text x="32" y="308" font-size="12" fill="#7B8681">Where have you used it? (optional)</text>
+  <path d="M32 316 H358 C362 316 366 320 366 324 V400 C366 406 362 410 358 410 H36 C32 410 28 406 28 400 V324 C28 320 32 316 32 316 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="340" font-size="13" fill="#A9B2B6">Production apps at Acme and Nimbus,</text>
+  <text x="42" y="360" font-size="13" fill="#A9B2B6">3+ years</text>
+
+  <path d="M32 450 H326 C334 450 342 456 342 466 V488 C342 500 334 506 326 506 H48 C38 506 32 498 32 488 Z" fill="#2F4858"/>
+  <text x="187" y="484" text-anchor="middle" font-size="15" font-weight="500" fill="#F1F3F4">Save</text>
+</svg>

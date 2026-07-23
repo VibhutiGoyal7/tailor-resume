@@ -1,0 +1,47 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+  <ellipse cx="360" cy="50" rx="60" ry="48" fill="#E4EAEC" transform="rotate(9 360 50)"/>
+
+  <text x="32" y="68" font-size="22" font-weight="500" fill="#1D2226">Profile</text>
+
+  <!-- avatar + name -->
+  <circle cx="56" cy="126" r="28" fill="#DDE6E9"/>
+  <text x="56" y="132" text-anchor="middle" font-size="18" font-weight="500" fill="#2F4858">NV</text>
+  <text x="98" y="122" font-size="16" font-weight="500" fill="#1D2226">Nikhil Verma</text>
+  <text x="98" y="142" font-size="13" fill="#7B8681">nikhil@email.com</text>
+
+  <!-- settings rows -->
+  <g>
+    <line x1="32" y1="182" x2="358" y2="182" stroke="#E4E9EB"/>
+    <text x="32" y="216" font-size="15" fill="#1D2226">Account details</text>
+    <path d="M350 210 L358 216 L350 222" fill="none" stroke="#A9B2B6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <line x1="32" y1="240" x2="358" y2="240" stroke="#E4E9EB"/>
+    <text x="32" y="274" font-size="15" fill="#1D2226">Password</text>
+    <path d="M350 268 L358 274 L350 280" fill="none" stroke="#A9B2B6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <line x1="32" y1="298" x2="358" y2="298" stroke="#E4E9EB"/>
+    <text x="32" y="332" font-size="15" fill="#1D2226">Notifications</text>
+    <path d="M350 326 L358 332 L350 338" fill="none" stroke="#A9B2B6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <line x1="32" y1="356" x2="358" y2="356" stroke="#E4E9EB"/>
+    <text x="32" y="390" font-size="15" fill="#1D2226">Resume basics</text>
+    <path d="M350 384 L358 390 L350 396" fill="none" stroke="#A9B2B6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <line x1="32" y1="414" x2="358" y2="414" stroke="#E4E9EB"/>
+    <text x="32" y="448" font-size="15" fill="#1D2226">How this works</text>
+    <path d="M350 442 L358 448 L350 454" fill="none" stroke="#A9B2B6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <line x1="32" y1="472" x2="358" y2="472" stroke="#E4E9EB"/>
+    <text x="32" y="506" font-size="15" fill="#1D2226">Legal and privacy</text>
+    <path d="M350 500 L358 506 L350 512" fill="none" stroke="#A9B2B6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <line x1="32" y1="530" x2="358" y2="530" stroke="#E4E9EB"/>
+  </g>
+
+  <text x="32" y="580" font-size="15" fill="#4A5F6B">Log out</text>
+
+  <path d="M32 620 H326 C334 620 342 626 342 636 V658 C342 670 334 676 326 676 H48 C38 676 32 668 32 658 Z"
+        fill="none" stroke="#E24B4A" stroke-width="1.5"/>
+  <text x="187" y="654" text-anchor="middle" font-size="14" fill="#A32D2D">Delete account</text>
+</svg>

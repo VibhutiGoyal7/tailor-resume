@@ -1,0 +1,33 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+  <ellipse cx="40" cy="80" rx="70" ry="55" fill="#EAEFF0" transform="rotate(-10 40 80)"/>
+  <circle cx="360" cy="130" r="6" fill="#D6E1E4"/>
+
+  <path d="M40 62 L28 72 L40 82" fill="none" stroke="#1D2226" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="32" y="150" font-size="22" font-weight="500" fill="#1D2226">Add to your bank</text>
+  <text x="32" y="176" font-size="14" fill="#7B8681">How do you want to add it?</text>
+
+  <g transform="rotate(-1 195 250)">
+    <path d="M32 216 H358 C364 216 368 222 368 228 V276 C368 284 362 288 356 288 H38 C32 288 26 284 26 276 V228 C26 222 30 216 32 216 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+    <circle cx="64" cy="252" r="18" fill="#DDE6E9"/>
+    <path d="M64 244 V260 M56 252 H72" stroke="#2F4858" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="96" y="248" font-size="16" font-weight="500" fill="#1D2226">Add manually</text>
+    <text x="96" y="268" font-size="12" fill="#7B8681">Fill in a structured form yourself</text>
+  </g>
+
+  <g transform="rotate(1 195 336)">
+    <path d="M32 302 H358 C364 302 368 308 368 314 V362 C368 370 362 374 356 374 H38 C32 374 26 370 26 362 V314 C26 308 30 302 32 302 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+    <circle cx="64" cy="338" r="18" fill="#DDE6E9"/>
+    <path d="M56 330 H72 M56 338 H72 M56 346 H66" stroke="#2F4858" stroke-width="2.2" stroke-linecap="round"/>
+    <text x="96" y="334" font-size="16" font-weight="500" fill="#1D2226">Write about it</text>
+    <text x="96" y="354" font-size="12" fill="#7B8681">Describe it in your own words</text>
+  </g>
+
+  <g transform="rotate(-1 195 422)">
+    <path d="M32 388 H358 C364 388 368 394 368 400 V448 C368 456 362 460 356 460 H38 C32 460 26 456 26 448 V400 C26 394 30 388 32 388 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+    <circle cx="64" cy="424" r="18" fill="#DDE6E9"/>
+    <path d="M64 416 L58 424 M64 416 L70 424 M64 416 V432" stroke="#2F4858" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="96" y="420" font-size="16" font-weight="500" fill="#1D2226">Import from resume</text>
+    <text x="96" y="440" font-size="12" fill="#7B8681">Upload a resume, we'll extract it</text>
+  </g>
+</svg>
