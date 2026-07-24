@@ -9,8 +9,8 @@ deployables — per the [build brief](docs/tailor-build-brief.md).
   (parse → retrieve → generate).
 - **`apps/mobile`** — React Native (Expo) app.
 - **`packages/db`** — Prisma schema + shared client (used by web _and_ worker).
-- **`packages/modules`** — module facades (`profile`, `resume-engine`) — the only
-  way code crosses a module boundary (ADR-008).
+- **`packages/modules`** — module facades (`auth`, `profile`, `resume-engine`) —
+  the only way code crosses a module boundary (ADR-008).
 - **`packages/shared-types`** — DTOs + the canonical API error shape, shared
   across web/worker/mobile.
 
@@ -53,16 +53,41 @@ npm run start --workspace @tailor/mobile   # Expo dev server
 
 Health check once `web` is up: `curl http://localhost:3000/api/health` → `{"status":"ok","service":"web"}`.
 
+## Auth endpoints (Milestone 2, slice 1)
+
+Email/password auth is live (`apps/web/app/api/auth/*`):
+
+| Method + path            | Body                  | Result                                        |
+| ------------------------ | --------------------- | --------------------------------------------- |
+| `POST /api/auth/signup`  | `{ email, password }` | `201 { user }`                                |
+| `POST /api/auth/login`   | `{ email, password }` | `200 { accessToken, refreshToken, user }`     |
+| `POST /api/auth/refresh` | `{ refreshToken }`    | `200 { accessToken, refreshToken }` (rotates) |
+| `POST /api/auth/logout`  | `{ refreshToken }`    | `204`                                         |
+
+Protected routes use `requireAuth(req)` (Bearer access token). Access tokens last
+15 min; refresh tokens rotate on every use and a reused (revoked) token revokes
+the whole session (ADR-010). Login/signup are rate-limited to 7 attempts / 15 min.
+_Next slice: email verification, password reset, Google sign-in, account routes._
+
 ## Quality gates (run before pushing)
 
 ```bash
 npm run format:check   # Prettier
 npm run lint           # ESLint
-npm test               # Vitest (all workspaces)
+npm test               # Vitest (all workspaces) — DB integration tests SKIP by default
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same lint + test suite on every PR into
-`dev` and `main`; a red job blocks merge (CLAUDE.md Section 2).
+Database-backed integration tests (the auth signup/login/refresh flow) are gated
+behind `RUN_DB_TESTS=1` so a plain `npm test` never touches your dev database.
+To run them against a database (needs `docker compose up -d` + `npm run db:migrate`):
+
+```bash
+RUN_DB_TESTS=1 JWT_SECRET=dev-secret npm test
+```
+
+CI (`.github/workflows/ci.yml`) runs lint + the FULL suite (including DB tests
+against an ephemeral Postgres) on every PR into `dev` and `main`; a red job
+blocks merge (CLAUDE.md Section 2).
 
 ## Repo scripts (root)
 
@@ -83,6 +108,6 @@ CI (`.github/workflows/ci.yml`) runs the same lint + test suite on every PR into
 ## Git workflow
 
 `main` (stable) ← `dev` (integration) ← `feature/*` / `fix/*` / `chore/*` branches.
-Never commit directly to `main`. See CLAUDE.md Section 9 for identity/remote
+Never commit directly to `main`. See CLAUDE.md Section 10 for identity/remote
 requirements (this repo uses a personal GitHub identity via the `github-personal`
 SSH alias) and branch naming.
