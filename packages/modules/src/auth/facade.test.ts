@@ -1,0 +1,226 @@
+// Integration tests for the auth facade against a real database.
+// Gated on RUN_DB_TESTS=1 (explicit opt-in) so a plain `npm test` never mutates
+// a developer's dev database — CI sets it with an ephemeral Postgres, and
+// locally you run `RUN_DB_TESTS=1 npm test`. DATABASE_URL comes from the env
+// (CI) or the root .env (which vitest loads).
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { prisma } from '@tailor/db';
+import { AppError } from '@tailor/shared-types';
+import { authModule, setEmailSender } from './index.js';
+import type { EmailSender } from './email.js';
+import { hashRefreshToken } from './tokens.js';
+
+const runDb = process.env.RUN_DB_TESTS === '1';
+if (!process.env.JWT_SECRET) process.env.JWT_SECRET = 'test-jwt-secret';
+
+/** Captures the links the module would email, so tests can read the raw token. */
+class CapturingEmailSender implements EmailSender {
+  lastVerifyUrl?: string;
+  lastResetUrl?: string;
+  async sendVerificationEmail(_to: string, url: string): Promise<void> {
+    this.lastVerifyUrl = url;
+  }
+  async sendPasswordResetEmail(_to: string, url: string): Promise<void> {
+    this.lastResetUrl = url;
+  }
+}
+const tokenFrom = (url: string | undefined): string => {
+  const t = url ? new URL(url).searchParams.get('token') : null;
+  if (!t) throw new Error(`no token in url: ${url}`);
+  return t;
+};
+
+describe.skipIf(!runDb)('authModule (DB integration)', () => {
+  // Unique email namespace for this file so it never clobbers other DB test
+  // files running in parallel against the same database.
+  const creds = { email: 'facade-test@example.com', password: 'sup3r-secret-pw' };
+
+  const mail = new CapturingEmailSender();
+
+  async function cleanup(): Promise<void> {
+    const existing = await prisma.user.findUnique({ where: { email: creds.email } });
+    if (existing) {
+      await prisma.refreshToken.deleteMany({ where: { userId: existing.id } });
+      await prisma.verificationToken.deleteMany({ where: { userId: existing.id } });
+      await prisma.user.delete({ where: { id: existing.id } });
+    }
+  }
+
+  beforeAll(() => setEmailSender(mail));
+  beforeEach(cleanup);
+  afterAll(async () => {
+    await cleanup();
+    await prisma.$disconnect();
+  });
+
+  it('signup creates an unverified user and never returns the hash', async () => {
+    const user = await authModule.signup(creds);
+    expect(user).toMatchObject({ email: creds.email, emailVerified: false });
+    expect(user).not.toHaveProperty('passwordHash');
+  });
+
+  it('signup rejects a duplicate email with CONFLICT', async () => {
+    await authModule.signup(creds);
+    await expect(authModule.signup(creds)).rejects.toMatchObject({
+      constructor: AppError,
+      code: 'CONFLICT',
+    });
+  });
+
+  it('login succeeds with correct password and issues a token pair', async () => {
+    await authModule.signup(creds);
+    const { user, tokens } = await authModule.login(creds);
+    expect(user.email).toBe(creds.email);
+    expect(tokens.accessToken).toBeTruthy();
+    expect(tokens.refreshToken).toHaveLength(64);
+    await expect(authModule.verifyAccessToken(tokens.accessToken)).resolves.toEqual({
+      userId: user.id,
+    });
+  });
+
+  it('login with wrong password throws INVALID_CREDENTIALS', async () => {
+    await authModule.signup(creds);
+    await expect(authModule.login({ email: creds.email, password: 'wrong' })).rejects.toMatchObject(
+      { code: 'INVALID_CREDENTIALS' },
+    );
+  });
+
+  it('login for a missing user throws INVALID_CREDENTIALS (no enumeration)', async () => {
+    await expect(
+      authModule.login({ email: 'nobody@example.com', password: 'whatever' }),
+    ).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+  });
+
+  it('refresh rotates: old token is revoked, a new pair is returned', async () => {
+    await authModule.signup(creds);
+    const { tokens } = await authModule.login(creds);
+
+    const rotated = await authModule.refresh(tokens.refreshToken);
+    expect(rotated.refreshToken).not.toBe(tokens.refreshToken);
+
+    const oldRow = await prisma.refreshToken.findFirst({
+      where: { tokenHash: hashRefreshToken(tokens.refreshToken) },
+    });
+    expect(oldRow?.revoked).toBe(true);
+  });
+
+  it('reusing a revoked refresh token revokes ALL of the user’s tokens', async () => {
+    const created = await authModule.signup(creds);
+    const { tokens } = await authModule.login(creds);
+    const rotated = await authModule.refresh(tokens.refreshToken); // original now revoked
+
+    // Present the original (revoked) token again -> theft signal.
+    await expect(authModule.refresh(tokens.refreshToken)).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+    });
+
+    // The rotated token must now also be dead.
+    await expect(authModule.refresh(rotated.refreshToken)).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+    });
+    const active = await prisma.refreshToken.count({
+      where: { userId: created.id, revoked: false },
+    });
+    expect(active).toBe(0);
+  });
+
+  it('logout revokes the refresh token (idempotently)', async () => {
+    await authModule.signup(creds);
+    const { tokens } = await authModule.login(creds);
+
+    await authModule.logout(tokens.refreshToken);
+    await expect(authModule.refresh(tokens.refreshToken)).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+    });
+    // Second logout is a no-op, not an error.
+    await expect(authModule.logout(tokens.refreshToken)).resolves.toBeUndefined();
+  });
+
+  it('signup issues a verification email; verifyEmail marks the user verified', async () => {
+    const user = await authModule.signup(creds);
+    expect(user.emailVerified).toBe(false);
+
+    const token = tokenFrom(mail.lastVerifyUrl);
+    const verified = await authModule.verifyEmail(token);
+    expect(verified.emailVerified).toBe(true);
+
+    const fresh = await prisma.user.findUnique({ where: { id: user.id } });
+    expect(fresh?.emailVerified).toBe(true);
+
+    // Replaying the same token is rejected (single-use).
+    await expect(authModule.verifyEmail(token)).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED',
+    });
+  });
+
+  it('verifyEmail rejects an unknown token', async () => {
+    await expect(authModule.verifyEmail('nope')).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED',
+    });
+  });
+
+  it('forgot + reset password: new password works, old fails, sessions revoked', async () => {
+    await authModule.signup(creds);
+    const { tokens } = await authModule.login(creds);
+
+    await authModule.forgotPassword(creds.email);
+    const resetToken = tokenFrom(mail.lastResetUrl);
+    await authModule.resetPassword(resetToken, 'brand-new-password');
+
+    // Old password no longer works; new one does.
+    await expect(authModule.login(creds)).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+    await expect(
+      authModule.login({ email: creds.email, password: 'brand-new-password' }),
+    ).resolves.toBeTruthy();
+
+    // The session that existed before the reset is revoked.
+    await expect(authModule.refresh(tokens.refreshToken)).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+    });
+    // Reset token is single-use.
+    await expect(authModule.resetPassword(resetToken, 'another-one')).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED',
+    });
+  });
+
+  it('forgotPassword for an unknown email resolves silently (no enumeration)', async () => {
+    await expect(authModule.forgotPassword('ghost@example.com')).resolves.toBeUndefined();
+  });
+
+  it('getAccount returns the public account view', async () => {
+    const user = await authModule.signup(creds);
+    const account = await authModule.getAccount(user.id);
+    expect(account).toMatchObject({ email: creds.email, emailVerified: false });
+    expect(typeof account.createdAt).toBe('string');
+  });
+
+  it('changePassword: wrong current fails; correct rotates password + revokes sessions', async () => {
+    const user = await authModule.signup(creds);
+    const { tokens } = await authModule.login(creds);
+
+    await expect(
+      authModule.changePassword(user.id, 'wrong-current', 'new-good-password'),
+    ).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+
+    await authModule.changePassword(user.id, creds.password, 'new-good-password');
+    await expect(
+      authModule.login({ email: creds.email, password: 'new-good-password' }),
+    ).resolves.toBeTruthy();
+    // Prior session revoked.
+    await expect(authModule.refresh(tokens.refreshToken)).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+    });
+  });
+
+  it('deleteAccount removes the user and its sessions/tokens', async () => {
+    const user = await authModule.signup(creds);
+    await authModule.login(creds);
+
+    await authModule.deleteAccount(user.id);
+
+    await expect(authModule.getAccount(user.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(authModule.login(creds)).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+    expect(await prisma.refreshToken.count({ where: { userId: user.id } })).toBe(0);
+    expect(await prisma.verificationToken.count({ where: { userId: user.id } })).toBe(0);
+  });
+});

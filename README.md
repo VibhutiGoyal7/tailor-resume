@@ -9,8 +9,8 @@ deployables — per the [build brief](docs/tailor-build-brief.md).
   (parse → retrieve → generate).
 - **`apps/mobile`** — React Native (Expo) app.
 - **`packages/db`** — Prisma schema + shared client (used by web _and_ worker).
-- **`packages/modules`** — module facades (`profile`, `resume-engine`) — the only
-  way code crosses a module boundary (ADR-008).
+- **`packages/modules`** — module facades (`auth`, `profile`, `resume-engine`) —
+  the only way code crosses a module boundary (ADR-008).
 - **`packages/shared-types`** — DTOs + the canonical API error shape, shared
   across web/worker/mobile.
 
@@ -53,16 +53,53 @@ npm run start --workspace @tailor/mobile   # Expo dev server
 
 Health check once `web` is up: `curl http://localhost:3000/api/health` → `{"status":"ok","service":"web"}`.
 
+## Auth & account endpoints (Milestone 2)
+
+Email/password auth + account management are live (`apps/web/app/api/`):
+
+| Method + path                    | Body                                        | Result                                        |
+| -------------------------------- | ------------------------------------------- | --------------------------------------------- |
+| `POST /api/auth/signup`          | `{ email, password }`                       | `201 { user }` (sends verification email)     |
+| `POST /api/auth/login`           | `{ email, password }`                       | `200 { accessToken, refreshToken, user }`     |
+| `POST /api/auth/refresh`         | `{ refreshToken }`                          | `200 { accessToken, refreshToken }` (rotates) |
+| `POST /api/auth/logout`          | `{ refreshToken }`                          | `204`                                         |
+| `POST /api/auth/verify-email`    | `{ token }`                                 | `200 { user }`                                |
+| `POST /api/auth/forgot-password` | `{ email }`                                 | `200` (always; no enumeration)                |
+| `POST /api/auth/reset-password`  | `{ token, newPassword }`                    | `200` (revokes all sessions)                  |
+| `GET /api/account`               | — (Bearer)                                  | `200 { email, emailVerified, createdAt }`     |
+| `PATCH /api/account/password`    | `{ currentPassword, newPassword }` (Bearer) | `200`                                         |
+| `DELETE /api/account`            | — (Bearer)                                  | `204` (cascades all user-owned rows)          |
+
+Protected routes use `requireAuth(req)` (Bearer access token). Access tokens last
+15 min; refresh tokens rotate on every use and a reused (revoked) token revokes
+the whole session (ADR-010). Login/signup/forgot are rate-limited to 7 attempts /
+15 min. Verification + reset tokens are single-use and expire in 1 hour.
+
+**Email in dev:** with no `RESEND_API_KEY` set, verification/reset emails aren't
+sent — the link is logged to the server output (look for `[dev-email]`). Set
+`PUBLIC_APP_URL` to control the link's base URL.
+
+_Remaining (slice 2b): Google sign-in._
+
 ## Quality gates (run before pushing)
 
 ```bash
 npm run format:check   # Prettier
 npm run lint           # ESLint
-npm test               # Vitest (all workspaces)
+npm test               # Vitest (all workspaces) — DB integration tests SKIP by default
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same lint + test suite on every PR into
-`dev` and `main`; a red job blocks merge (CLAUDE.md Section 2).
+Database-backed integration tests (the auth signup/login/refresh flow) are gated
+behind `RUN_DB_TESTS=1` so a plain `npm test` never touches your dev database.
+To run them against a database (needs `docker compose up -d` + `npm run db:migrate`):
+
+```bash
+RUN_DB_TESTS=1 JWT_SECRET=dev-secret npm test
+```
+
+CI (`.github/workflows/ci.yml`) runs lint + the FULL suite (including DB tests
+against an ephemeral Postgres) on every PR into `dev` and `main`; a red job
+blocks merge (CLAUDE.md Section 2).
 
 ## Repo scripts (root)
 
@@ -83,6 +120,6 @@ CI (`.github/workflows/ci.yml`) runs the same lint + test suite on every PR into
 ## Git workflow
 
 `main` (stable) ← `dev` (integration) ← `feature/*` / `fix/*` / `chore/*` branches.
-Never commit directly to `main`. See CLAUDE.md Section 9 for identity/remote
+Never commit directly to `main`. See CLAUDE.md Section 10 for identity/remote
 requirements (this repo uses a personal GitHub identity via the `github-personal`
 SSH alias) and branch naming.

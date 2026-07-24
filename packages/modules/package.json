@@ -13,6 +13,10 @@
   },
   "dependencies": {
     "@tailor/db": "*",
-    "@tailor/shared-types": "*"
+    "@tailor/shared-types": "*",
+    "argon2": "^0.41.1",
+    "jose": "^5.9.6",
+    "pino": "^9.6.0",
+    "resend": "^4.0.1"
   }
 }

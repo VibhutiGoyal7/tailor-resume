@@ -13,9 +13,11 @@
     "@tailor/db": "*",
     "@tailor/modules": "*",
     "@tailor/shared-types": "*",
+    "dotenv": "^16.4.7",
     "next": "^15.1.4",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/react": "^19.0.7"

@@ -1,3 +1,16 @@
+export {
+  authModule,
+  authRateLimiter,
+  AUTH_MAX_ATTEMPTS,
+  AUTH_WINDOW_MS,
+  RateLimiter,
+  setEmailSender,
+  DevEmailSender,
+  ResendEmailSender,
+} from './auth/index.js';
+export type { TokenPair, EmailSender } from './auth/index.js';
+export { logger } from './logger.js';
+export type { Logger } from './logger.js';
 export { profileModule } from './profile/index.js';
 export type { AddExperienceItemInput, UpdateResumeBasicsInput } from './profile/index.js';
 export { resumeEngine } from './resume-engine/index.js';

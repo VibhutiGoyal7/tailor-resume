@@ -71,9 +71,27 @@ resume-engine    job-ingestion   (job-ingestion not built in Phase 1)
    └── applications ──┘            (not built in Phase 1)
 ```
 
-For Phase 1, only `profile` and `resume-engine` are built. Each is a folder in `packages/modules/` exporting exactly one facade:
+For Phase 1, three modules are built: **`auth`**, `profile`, and `resume-engine`. Each is a folder in `packages/modules/` exporting exactly one facade.
+
+> **`auth` recorded as a Phase-1 module (Milestone 2 decision).** Section 5's "route groups map to module facades" implies an auth facade, but the graph above (inherited from the project doc) predates that and omitted it. Resolving the gap: `auth` is its own module, owning the `User` and `RefreshToken` tables. Every other module deals only in `userId` strings, so the no-cross-module-Prisma rule (CLAUDE.md Section 1) holds — nothing else imports `User`. `auth` has no dependency on `profile`/`resume-engine`; it sits to the side of the graph and is consumed only by the web app's `/api/auth/*` and `/api/account/*` routes.
 
 ```ts
+// packages/modules/auth/index.ts
+export const authModule = {
+  signup(input) { ... },              // -> AuthUser (does not log in; contract: 201; sends verify email)
+  login(input) { ... },               // -> { user, tokens }  (argon2 verify + issue pair)
+  refresh(rawRefreshToken) { ... },   // rotate + reuse-detection (ADR-010)
+  logout(rawRefreshToken) { ... },    // revoke (idempotent)
+  verifyAccessToken(token) { ... },   // -> { userId }  (used by requireAuth middleware)
+  verifyEmail(rawToken) { ... },      // consume email_verify token -> emailVerified = true
+  forgotPassword(email) { ... },      // send reset link (silent for unknown email)
+  resetPassword(rawToken, newPw) { ... }, // consume password_reset token, revoke all sessions
+  getAccount(userId) { ... },         // -> { email, emailVerified, createdAt }
+  changePassword(userId, cur, next) { ... }, // verify current, revoke other sessions
+  deleteAccount(userId) { ... },      // manual cascade over all user-owned rows
+  // slice 2b: googleSignIn(firebaseIdToken)
+};
+
 // packages/modules/profile/index.ts
 export const profileModule = {
   getExperienceBank(userId) { ... },
@@ -190,6 +208,22 @@ model RefreshToken {
 ```
 
 Note: `TailoringJob` isn't in the original project doc's Section 6 table but is required to make ADR-015 (stage-level polling) and ADR-017 (two-phase confirm) actually implementable — it's the row `GET /resumes/jobs/:jobId` reads.
+
+Note (Milestone 2, slice 2): added `VerificationToken` — single-use tokens for **email verification** and **password reset**, distinguished by a `type` field (`"email_verify" | "password_reset"`). Stored hashed (sha256) with an `expiresAt` and a nullable `usedAt` (single-use). This is the "token stored server-side with expiry" that Section 6 requires; it wasn't enumerated in the original data model.
+
+```prisma
+model VerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String
+  type      String   // "email_verify" | "password_reset"
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId])
+  @@index([tokenHash])
+}
+```
 
 ---
 
@@ -415,4 +449,5 @@ Sourced from existing **open-source** resume template layouts (e.g. JSON Resume 
 
 - Which specific layout *variants* each of the 3 templates gets (e.g. one-column vs. two-column within "Modern two-column") isn't designed yet — needed before milestone 7.
 - Observability specifics (which logging library, whether a real dashboard tool like Axiom/Better Stack is worth it vs. Render/Railway's built-in log viewer) — low priority, deferred to deploy time (milestone 9), no pressure since the project isn't going live imminently.
-- Profile & settings screen's account actions (change password, delete account) now have routes specified (Section 5) but haven't been built or wired into a milestone explicitly — fold into milestone 2 (auth module) rather than treating as a separate pass.
+- Profile & settings screen's account actions (change password, delete account) now have routes specified (Section 5) but haven't been built or wired into a milestone explicitly — fold into milestone 2 (auth module) rather than treating as a separate pass. **(Done — Milestone 2 slice 2.)**
+- **Google sign-in (`POST /api/auth/google`) — deferred, to integrate 2026-07-25 (Milestone 2, slice 2b).** Everything else in Milestone 2's auth module is built and tested (slices 1 + 2 on branch `feature/auth-module`). Google is the only remaining auth piece. Prerequisite the owner must set up first: a **Firebase project** (free) with Google sign-in enabled + a service-account key → fills `FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` (already in `.env.example`). Plan: build the backend route with token verification behind an `IdTokenVerifier` interface (firebase-admin impl) so the facade/route are testable with a fake verifier and CI stays green without real credentials; owner wires the real project when ready. Mobile client config is a separate, later (Milestone 8) concern.
