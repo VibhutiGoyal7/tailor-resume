@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   classifyRefresh,
+  classifyVerificationToken,
+  generateOpaqueToken,
   generateRefreshToken,
   hashRefreshToken,
+  sha256Hex,
   signAccessToken,
   verifyAccessToken,
 } from './tokens.js';
@@ -42,6 +45,39 @@ describe('refresh token', () => {
     const raw = generateRefreshToken();
     expect(hashRefreshToken(raw)).toBe(hashRefreshToken(raw));
     expect(hashRefreshToken(raw)).not.toBe(raw);
+  });
+});
+
+describe('opaque verification tokens', () => {
+  it('generates unique 64-char tokens and hashes them deterministically', () => {
+    const a = generateOpaqueToken();
+    const b = generateOpaqueToken();
+    expect(a).toHaveLength(64);
+    expect(a).not.toBe(b);
+    expect(sha256Hex(a)).toBe(sha256Hex(a));
+    expect(sha256Hex(a)).not.toBe(a);
+  });
+});
+
+describe('classifyVerificationToken', () => {
+  const now = new Date('2026-07-24T12:00:00Z');
+  const future = new Date('2026-07-24T12:30:00Z');
+  const past = new Date('2026-07-24T11:30:00Z');
+
+  it('unknown token -> invalid', () => {
+    expect(classifyVerificationToken(null, now)).toBe('invalid');
+  });
+  it('already-used token -> used', () => {
+    expect(classifyVerificationToken({ usedAt: past, expiresAt: future }, now)).toBe('used');
+  });
+  it('expired token -> expired', () => {
+    expect(classifyVerificationToken({ usedAt: null, expiresAt: past }, now)).toBe('expired');
+  });
+  it('fresh unused token -> valid', () => {
+    expect(classifyVerificationToken({ usedAt: null, expiresAt: future }, now)).toBe('valid');
+  });
+  it('used takes precedence over expiry', () => {
+    expect(classifyVerificationToken({ usedAt: past, expiresAt: past }, now)).toBe('used');
   });
 });
 

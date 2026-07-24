@@ -48,6 +48,40 @@ export function hashRefreshToken(raw: string): string {
   return createHash('sha256').update(raw).digest('hex');
 }
 
+// --- Opaque single-use tokens (email verification / password reset) ---
+
+export const VERIFICATION_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+/** A fresh opaque token (raw value; only ever leaves in an emailed link). */
+export function generateOpaqueToken(): string {
+  return randomBytes(32).toString('hex');
+}
+
+/** sha256 hex — what we persist for an opaque token (never the raw). */
+export function sha256Hex(raw: string): string {
+  return createHash('sha256').update(raw).digest('hex');
+}
+
+export type VerificationOutcome = 'valid' | 'invalid' | 'used' | 'expired';
+
+/**
+ * Pure decision for a presented verification/reset token given its stored row
+ * (or null) and the current time:
+ * - null          -> 'invalid' (unknown token)
+ * - usedAt set    -> 'used'    (single-use; already consumed)
+ * - past expiry   -> 'expired'
+ * - otherwise     -> 'valid'
+ */
+export function classifyVerificationToken(
+  row: { usedAt: Date | null; expiresAt: Date } | null,
+  now: Date,
+): VerificationOutcome {
+  if (!row) return 'invalid';
+  if (row.usedAt) return 'used';
+  if (row.expiresAt.getTime() <= now.getTime()) return 'expired';
+  return 'valid';
+}
+
 export type RefreshOutcome = 'valid' | 'invalid' | 'reuse' | 'expired';
 
 /**

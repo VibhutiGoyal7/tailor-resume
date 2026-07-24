@@ -3,28 +3,50 @@
 // a developer's dev database — CI sets it with an ephemeral Postgres, and
 // locally you run `RUN_DB_TESTS=1 npm test`. DATABASE_URL comes from the env
 // (CI) or the root .env (which vitest loads).
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@tailor/db';
 import { AppError } from '@tailor/shared-types';
-import { authModule } from './index.js';
+import { authModule, setEmailSender } from './index.js';
+import type { EmailSender } from './email.js';
 import { hashRefreshToken } from './tokens.js';
 
 const runDb = process.env.RUN_DB_TESTS === '1';
 if (!process.env.JWT_SECRET) process.env.JWT_SECRET = 'test-jwt-secret';
+
+/** Captures the links the module would email, so tests can read the raw token. */
+class CapturingEmailSender implements EmailSender {
+  lastVerifyUrl?: string;
+  lastResetUrl?: string;
+  async sendVerificationEmail(_to: string, url: string): Promise<void> {
+    this.lastVerifyUrl = url;
+  }
+  async sendPasswordResetEmail(_to: string, url: string): Promise<void> {
+    this.lastResetUrl = url;
+  }
+}
+const tokenFrom = (url: string | undefined): string => {
+  const t = url ? new URL(url).searchParams.get('token') : null;
+  if (!t) throw new Error(`no token in url: ${url}`);
+  return t;
+};
 
 describe.skipIf(!runDb)('authModule (DB integration)', () => {
   // Unique email namespace for this file so it never clobbers other DB test
   // files running in parallel against the same database.
   const creds = { email: 'facade-test@example.com', password: 'sup3r-secret-pw' };
 
+  const mail = new CapturingEmailSender();
+
   async function cleanup(): Promise<void> {
     const existing = await prisma.user.findUnique({ where: { email: creds.email } });
     if (existing) {
       await prisma.refreshToken.deleteMany({ where: { userId: existing.id } });
+      await prisma.verificationToken.deleteMany({ where: { userId: existing.id } });
       await prisma.user.delete({ where: { id: existing.id } });
     }
   }
 
+  beforeAll(() => setEmailSender(mail));
   beforeEach(cleanup);
   afterAll(async () => {
     await cleanup();
@@ -112,5 +134,93 @@ describe.skipIf(!runDb)('authModule (DB integration)', () => {
     });
     // Second logout is a no-op, not an error.
     await expect(authModule.logout(tokens.refreshToken)).resolves.toBeUndefined();
+  });
+
+  it('signup issues a verification email; verifyEmail marks the user verified', async () => {
+    const user = await authModule.signup(creds);
+    expect(user.emailVerified).toBe(false);
+
+    const token = tokenFrom(mail.lastVerifyUrl);
+    const verified = await authModule.verifyEmail(token);
+    expect(verified.emailVerified).toBe(true);
+
+    const fresh = await prisma.user.findUnique({ where: { id: user.id } });
+    expect(fresh?.emailVerified).toBe(true);
+
+    // Replaying the same token is rejected (single-use).
+    await expect(authModule.verifyEmail(token)).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED',
+    });
+  });
+
+  it('verifyEmail rejects an unknown token', async () => {
+    await expect(authModule.verifyEmail('nope')).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED',
+    });
+  });
+
+  it('forgot + reset password: new password works, old fails, sessions revoked', async () => {
+    await authModule.signup(creds);
+    const { tokens } = await authModule.login(creds);
+
+    await authModule.forgotPassword(creds.email);
+    const resetToken = tokenFrom(mail.lastResetUrl);
+    await authModule.resetPassword(resetToken, 'brand-new-password');
+
+    // Old password no longer works; new one does.
+    await expect(authModule.login(creds)).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+    await expect(
+      authModule.login({ email: creds.email, password: 'brand-new-password' }),
+    ).resolves.toBeTruthy();
+
+    // The session that existed before the reset is revoked.
+    await expect(authModule.refresh(tokens.refreshToken)).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+    });
+    // Reset token is single-use.
+    await expect(authModule.resetPassword(resetToken, 'another-one')).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED',
+    });
+  });
+
+  it('forgotPassword for an unknown email resolves silently (no enumeration)', async () => {
+    await expect(authModule.forgotPassword('ghost@example.com')).resolves.toBeUndefined();
+  });
+
+  it('getAccount returns the public account view', async () => {
+    const user = await authModule.signup(creds);
+    const account = await authModule.getAccount(user.id);
+    expect(account).toMatchObject({ email: creds.email, emailVerified: false });
+    expect(typeof account.createdAt).toBe('string');
+  });
+
+  it('changePassword: wrong current fails; correct rotates password + revokes sessions', async () => {
+    const user = await authModule.signup(creds);
+    const { tokens } = await authModule.login(creds);
+
+    await expect(
+      authModule.changePassword(user.id, 'wrong-current', 'new-good-password'),
+    ).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+
+    await authModule.changePassword(user.id, creds.password, 'new-good-password');
+    await expect(
+      authModule.login({ email: creds.email, password: 'new-good-password' }),
+    ).resolves.toBeTruthy();
+    // Prior session revoked.
+    await expect(authModule.refresh(tokens.refreshToken)).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+    });
+  });
+
+  it('deleteAccount removes the user and its sessions/tokens', async () => {
+    const user = await authModule.signup(creds);
+    await authModule.login(creds);
+
+    await authModule.deleteAccount(user.id);
+
+    await expect(authModule.getAccount(user.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(authModule.login(creds)).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+    expect(await prisma.refreshToken.count({ where: { userId: user.id } })).toBe(0);
+    expect(await prisma.verificationToken.count({ where: { userId: user.id } })).toBe(0);
   });
 });

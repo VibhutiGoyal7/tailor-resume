@@ -8,6 +8,9 @@ import { POST as signup } from './signup/route';
 import { POST as login } from './login/route';
 import { POST as refresh } from './refresh/route';
 import { POST as logout } from './logout/route';
+import { POST as verifyEmail } from './verify-email/route';
+import { POST as forgotPassword } from './forgot-password/route';
+import { POST as resetPassword } from './reset-password/route';
 
 function jsonReq(body: unknown, headers: Record<string, string> = {}): Request {
   return new Request('http://localhost/api/auth', {
@@ -46,6 +49,18 @@ describe('auth routes — validation & auth header (no DB)', () => {
     await expect(
       requireAuth(new Request('http://localhost/x', { headers: { authorization: 'Basic xyz' } })),
     ).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+  });
+
+  it('verify-email with no token → 400', async () => {
+    expect((await verifyEmail(jsonReq({}))).status).toBe(400);
+  });
+
+  it('forgot-password with an invalid email → 400', async () => {
+    expect((await forgotPassword(jsonReq({ email: 'nope' }))).status).toBe(400);
+  });
+
+  it('reset-password with a too-short new password → 400', async () => {
+    expect((await resetPassword(jsonReq({ token: 'x', newPassword: 'short' }))).status).toBe(400);
   });
 });
 

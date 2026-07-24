@@ -36,3 +36,42 @@ export interface AuthUser {
   email: string;
   emailVerified: boolean;
 }
+
+// --- Slice 2: email verification, password reset, account management ---
+
+/** Single-use verification token kinds (VerificationToken.type). */
+export const VERIFICATION_TOKEN_TYPES = {
+  emailVerify: 'email_verify',
+  passwordReset: 'password_reset',
+} as const;
+export type VerificationTokenType =
+  (typeof VERIFICATION_TOKEN_TYPES)[keyof typeof VERIFICATION_TOKEN_TYPES];
+
+export const verifyEmailSchema = z.object({
+  token: z.string().min(1),
+});
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+});
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  newPassword: passwordSchema,
+});
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: passwordSchema,
+});
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+/** Response for GET /api/account. */
+export interface AccountView {
+  email: string;
+  emailVerified: boolean;
+  createdAt: string; // ISO 8601
+}
