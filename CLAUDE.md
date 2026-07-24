@@ -69,9 +69,20 @@ Stop and ask rather than guessing, when:
 Don't stop and ask for:
 - Exact validation library syntax, minor RN styling choices, variable naming — just use good judgment and move on.
 
-## 9. Git workflow
+## 9. End-of-milestone verification (owner has no backend background — this matters)
 
-### 9a. Identity and remote (verify before every commit/push)
+The owner is a mobile developer with no backend experience and is reviewing your work without being able to read backend code for correctness. Because of that, **every milestone or significant chunk of work ends with a short "How to verify this yourself" section**, written for someone with zero backend knowledge:
+
+- Plain-language description of what was built and why it matters, not implementation detail.
+- A short list of runnable commands with the exact expected output/result ("run X, you should see Y — that means Z is working").
+- Prefer checks that are visually obvious (a browser window, a green CI checkmark, a table appearing in Prisma Studio) over checks that require reading code or logs to interpret.
+- If something can't be verified without reading code, say so explicitly and explain in plain terms what to look for, rather than assuming it's fine because the owner didn't ask.
+
+This isn't optional polish — treat it as part of the definition of done for any milestone.
+
+## 10. Git workflow
+
+### 10a. Identity and remote (verify before every commit/push)
 
 This repo uses a **personal** GitHub account, separate from this laptop's default (work) git identity. Before any commit or push, verify:
 ```bash
@@ -82,14 +93,14 @@ matches the personal email set up for this repo (see the one-time SSH setup the 
 git remote -v   # should show git@github-personal:<username>/tailor.git, not git@github.com:...
 ```
 
-### 9b. Branch structure
+### 10b. Branch structure
 
 - **`main`** — always stable, deployable code only. Never commit directly to `main`.
 - **`dev`** — the integration branch. All work merges here first. This is the "current, working, but not necessarily release-tagged" branch.
-- **Every unit of work gets its own branch off `dev`**, named `<type>/<short-description>`, using the same types as commit messages (Section 9c): `feature/tailoring-pipeline-parse-stage`, `fix/refresh-token-rotation`, `docs/update-api-contracts`, `chore/ci-setup`, `test/bank-module-coverage`.
+- **Every unit of work gets its own branch off `dev`**, named `<type>/<short-description>`, using the same types as commit messages (Section 10c): `feature/tailoring-pipeline-parse-stage`, `fix/refresh-token-rotation`, `docs/update-api-contracts`, `chore/ci-setup`, `test/bank-module-coverage`.
 - **After a branch merges into `dev`, delete it** — both locally (`git branch -d <branch>`) and on the remote (`git push origin --delete <branch>`). Don't let merged branches accumulate.
 - **`dev` merges into `main` only at verified-stable checkpoints** — e.g. a build-brief milestone is complete and its tests are green — not after every individual feature branch. Tag the `main` commit at that point if it lines up with a milestone (e.g. `v0.1-milestone2-auth`).
 
-### 9c. Commit messages
+### 10c. Commit messages
 
 Conventional commits, one logical change per commit: `feat:`, `fix:`, `test:`, `docs:`, `chore:`. No commented-out dead code left in a merged PR/branch. No unaddressed `TODO` without a linked follow-up note in the relevant doc's open items. Lint/format (ESLint + Prettier) runs clean before commit — configure this from milestone 1, not retrofitted later.
