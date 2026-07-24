@@ -1,0 +1,54 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+  <ellipse cx="350" cy="60" rx="60" ry="48" fill="#E4EAEC" transform="rotate(9 350 60)"/>
+
+  <path d="M40 62 L28 72 L40 82" fill="none" stroke="#1D2226" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- match score dial -->
+  <g transform="translate(163,96)">
+    <circle cx="32" cy="32" r="32" fill="#DDE6E9"/>
+    <circle cx="32" cy="32" r="32" fill="none" stroke="#2F4858" stroke-width="4" stroke-dasharray="150 51" stroke-linecap="round" transform="rotate(-90 32 32)"/>
+    <text x="32" y="38" text-anchor="middle" font-size="16" font-weight="500" fill="#2F4858">92%</text>
+  </g>
+  <text x="195" y="182" text-anchor="middle" font-size="16" font-weight="500" fill="#1D2226">Great match</text>
+  <text x="195" y="200" text-anchor="middle" font-size="12" fill="#7B8681">Senior Mobile Engineer</text>
+
+  <!-- template selector -->
+  <text x="32" y="236" font-size="13" font-weight="500" fill="#7B8681">TEMPLATE</text>
+  <path d="M32 246 H140 C144 246 148 250 148 254 V310 C148 314 144 318 140 318 H32 Z" fill="#FFFFFF" stroke="#2F4858" stroke-width="2"/>
+  <rect x="44" y="258" width="72" height="4" fill="#DDE6E9"/>
+  <rect x="44" y="268" width="50" height="4" fill="#DDE6E9"/>
+  <rect x="44" y="282" width="72" height="3" fill="#EAEFF0"/>
+  <rect x="44" y="290" width="72" height="3" fill="#EAEFF0"/>
+  <rect x="44" y="298" width="55" height="3" fill="#EAEFF0"/>
+  <text x="88" y="332" text-anchor="middle" font-size="11" fill="#1D2226">Clean</text>
+
+  <path d="M159 246 H267 C271 246 275 250 275 254 V310 C275 314 271 318 267 318 H159 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <rect x="171" y="258" width="30" height="46" fill="#EAEFF0"/>
+  <rect x="207" y="258" width="52" height="4" fill="#DDE6E9"/>
+  <rect x="207" y="270" width="52" height="3" fill="#EAEFF0"/>
+  <rect x="207" y="278" width="40" height="3" fill="#EAEFF0"/>
+  <text x="217" y="332" text-anchor="middle" font-size="11" fill="#7B8681">Modern</text>
+
+  <path d="M286 246 H358 C362 246 366 250 366 254 V310 C366 314 362 318 358 318 H286 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <rect x="296" y="256" width="60" height="3" fill="#DDE6E9"/>
+  <rect x="296" y="263" width="60" height="2.5" fill="#EAEFF0"/>
+  <rect x="296" y="270" width="60" height="2.5" fill="#EAEFF0"/>
+  <rect x="296" y="277" width="60" height="2.5" fill="#EAEFF0"/>
+  <rect x="296" y="284" width="60" height="2.5" fill="#EAEFF0"/>
+  <rect x="296" y="291" width="45" height="2.5" fill="#EAEFF0"/>
+  <text x="322" y="332" text-anchor="middle" font-size="11" fill="#7B8681">Compact</text>
+
+  <!-- preview -->
+  <path d="M32 356 H358 C363 356 368 360 368 366 V620 C368 626 362 630 358 630 H36 C30 630 26 626 26 620 V366 C26 360 30 356 32 356 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="52" y="386" font-size="14" font-weight="500" fill="#1D2226">Nikhil Verma</text>
+  <text x="52" y="402" font-size="10" fill="#7B8681">Bengaluru, IN · nikhil@email.com</text>
+  <line x1="52" y1="416" x2="342" y2="416" stroke="#E4E9EB"/>
+  <text x="52" y="436" font-size="11" font-weight="500" fill="#2F4858">EXPERIENCE</text>
+  <text x="52" y="454" font-size="10" fill="#1D2226">Senior Engineer, Acme Co.</text>
+  <text x="52" y="470" font-size="9" fill="#7B8681">Led migration to a new checkout flow...</text>
+  <text x="52" y="484" font-size="9" fill="#7B8681">Owned the mobile CI/CD pipeline</text>
+
+  <path d="M32 650 H326 C334 650 342 656 342 666 V688 C342 700 334 706 326 706 H48 C38 706 32 698 32 688 Z" fill="#2F4858"/>
+  <text x="187" y="682" text-anchor="middle" font-size="15" font-weight="500" fill="#F1F3F4">Customize layout</text>
+</svg>

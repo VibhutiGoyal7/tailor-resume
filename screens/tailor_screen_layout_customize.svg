@@ -1,0 +1,51 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+  <ellipse cx="30" cy="70" rx="65" ry="52" fill="#EAEFF0" transform="rotate(-9 30 70)"/>
+
+  <path d="M40 62 L28 72 L40 82" fill="none" stroke="#1D2226" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="32" y="132" font-size="21" font-weight="500" fill="#1D2226">Customize layout</text>
+  <text x="32" y="154" font-size="13" fill="#7B8681">Drag to reorder, tap the eye to hide.</text>
+
+  <!-- section row 1 -->
+  <path d="M32 178 H358 C363 178 368 182 368 188 V222 C368 228 363 232 358 232 H36 C30 232 26 228 26 222 V188 C26 182 30 178 32 178 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <path d="M44 197 H50 M44 203 H50 M44 209 H50" stroke="#A9B2B6" stroke-width="1.5"/>
+  <text x="64" y="209" font-size="14" fill="#1D2226">Summary</text>
+  <circle cx="338" cy="205" r="12" fill="#F1F3F4" stroke="#E4E9EB"/>
+
+  <!-- section row 2 -->
+  <path d="M32 240 H358 C363 240 368 244 368 250 V284 C368 290 363 294 358 294 H36 C30 294 26 290 26 284 V250 C26 244 30 240 32 240 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <path d="M44 259 H50 M44 265 H50 M44 271 H50" stroke="#A9B2B6" stroke-width="1.5"/>
+  <text x="64" y="271" font-size="14" fill="#1D2226">Experience</text>
+  <circle cx="338" cy="267" r="12" fill="#DDE6E9"/>
+  <path d="M332 267 Q338 261 344 267 Q338 273 332 267 Z" fill="none" stroke="#2F4858" stroke-width="1.3"/>
+
+  <!-- section row 3 -->
+  <path d="M32 302 H358 C363 302 368 306 368 312 V346 C368 352 363 356 358 356 H36 C30 356 26 352 26 346 V312 C26 306 30 302 32 302 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <path d="M44 321 H50 M44 327 H50 M44 333 H50" stroke="#A9B2B6" stroke-width="1.5"/>
+  <text x="64" y="333" font-size="14" fill="#1D2226">Projects</text>
+  <circle cx="338" cy="329" r="12" fill="#DDE6E9"/>
+  <path d="M332 329 Q338 323 344 329 Q338 335 332 329 Z" fill="none" stroke="#2F4858" stroke-width="1.3"/>
+
+  <!-- section row 4 - hidden -->
+  <path d="M32 364 H358 C363 364 368 368 368 374 V408 C368 414 363 418 358 418 H36 C30 418 26 414 26 408 V374 C26 368 30 364 32 364 Z" fill="#F1F3F4" stroke="#E4E9EB"/>
+  <path d="M44 383 H50 M44 389 H50 M44 395 H50" stroke="#C6CDD0" stroke-width="1.5"/>
+  <text x="64" y="395" font-size="14" fill="#A9B2B6">Education</text>
+  <path d="M330 395 Q338 388 346 395 Q338 402 330 395 Z" fill="none" stroke="#A9B2B6" stroke-width="1.3"/>
+  <line x1="330" y1="390" x2="346" y2="400" stroke="#A9B2B6" stroke-width="1.3"/>
+
+  <!-- section row 5 -->
+  <path d="M32 426 H358 C363 426 368 430 368 436 V470 C368 476 363 480 358 480 H36 C30 480 26 476 26 470 V436 C26 430 30 426 32 426 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <path d="M44 445 H50 M44 451 H50 M44 457 H50" stroke="#A9B2B6" stroke-width="1.5"/>
+  <text x="64" y="457" font-size="14" fill="#1D2226">Skills</text>
+  <circle cx="338" cy="453" r="12" fill="#DDE6E9"/>
+  <path d="M332 453 Q338 447 344 453 Q338 459 332 453 Z" fill="none" stroke="#2F4858" stroke-width="1.3"/>
+
+  <text x="32" y="520" font-size="13" font-weight="500" fill="#7B8681">LAYOUT</text>
+  <path d="M32 530 H190 C196 530 200 534 200 540 V566 C200 572 196 576 190 576 H32 Z" fill="#2F4858"/>
+  <text x="111" y="558" text-anchor="middle" font-size="13" font-weight="500" fill="#F1F3F4">One column</text>
+  <path d="M212 530 H358 C362 530 366 534 366 540 V566 C366 572 362 576 358 576 H212 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="289" y="558" text-anchor="middle" font-size="13" fill="#7B8681">Two column</text>
+
+  <path d="M32 620 H326 C334 620 342 626 342 636 V658 C342 670 334 676 326 676 H48 C38 676 32 668 32 658 Z" fill="#2F4858"/>
+  <text x="187" y="654" text-anchor="middle" font-size="15" font-weight="500" fill="#F1F3F4">Apply changes</text>
+</svg>

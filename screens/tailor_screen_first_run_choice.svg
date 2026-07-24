@@ -1,0 +1,41 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+
+  <ellipse cx="40" cy="110" rx="85" ry="65" fill="#EAEFF0" transform="rotate(-12 40 110)"/>
+  <circle cx="355" cy="80" r="7" fill="#D6E1E4"/>
+  <ellipse cx="360" cy="760" rx="70" ry="80" fill="#E4EAEC" transform="rotate(18 360 760)"/>
+  <circle cx="30" cy="500" r="5" fill="#CBD8DC"/>
+
+  <!-- growing sprout illustration motif -->
+  <g transform="translate(140,150)">
+    <circle cx="55" cy="55" r="70" fill="#DDE6E9"/>
+    <path d="M55 90 C55 65, 55 55, 55 40" fill="none" stroke="#2F4858" stroke-width="4" stroke-linecap="round"/>
+    <path d="M55 55 C40 50, 32 38, 35 25 C48 28, 56 38, 55 55 Z" fill="#5B8AA6"/>
+    <path d="M55 62 C70 58, 78 46, 75 33 C62 36, 54 46, 55 62 Z" fill="#2F4858"/>
+  </g>
+
+  <text x="195" y="340" text-anchor="middle" font-size="23" font-weight="500" fill="#1D2226">Let's build your</text>
+  <text x="195" y="368" text-anchor="middle" font-size="23" font-weight="500" fill="#1D2226">experience bank</text>
+  <text x="195" y="396" text-anchor="middle" font-size="14" fill="#7B8681">Give us something to start with —</text>
+  <text x="195" y="416" text-anchor="middle" font-size="14" fill="#7B8681">you can always add more later.</text>
+
+  <!-- option card 1: upload existing resume, slight tilt -->
+  <g transform="rotate(-1 195 480)">
+    <path d="M32 452 H358 C364 452 368 458 368 464 V500 C368 508 362 512 356 512 H38 C32 512 26 508 26 500 V464 C26 458 30 452 32 452 Z"
+          fill="#FFFFFF" stroke="#E4E9EB"/>
+    <circle cx="60" cy="482" r="16" fill="#DDE6E9"/>
+    <path d="M55 488 L60 476 L65 488 M60 476 V492" stroke="#2F4858" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="90" y="478" font-size="15" font-weight="500" fill="#1D2226">Upload an existing resume</text>
+    <text x="90" y="497" font-size="12" fill="#7B8681">We'll pull your experience from it</text>
+  </g>
+
+  <!-- option card 2: start from scratch, slight opposite tilt -->
+  <g transform="rotate(1 195 560)">
+    <path d="M32 532 H358 C364 532 368 538 368 544 V580 C368 588 362 592 356 592 H38 C32 592 26 588 26 580 V544 C26 538 30 532 32 532 Z"
+          fill="#FFFFFF" stroke="#E4E9EB"/>
+    <circle cx="60" cy="562" r="16" fill="#DDE6E9"/>
+    <path d="M52 562 H68 M60 554 V570" stroke="#2F4858" stroke-width="2" stroke-linecap="round"/>
+    <text x="90" y="558" font-size="15" font-weight="500" fill="#1D2226">Start from scratch</text>
+    <text x="90" y="577" font-size="12" fill="#7B8681">We'll guide you through your first entry</text>
+  </g>
+</svg>

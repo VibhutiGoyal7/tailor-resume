@@ -1,0 +1,40 @@
+# Local dev dependencies for Tailor: Postgres (with pgvector) + Redis.
+# `docker compose up -d` then point DATABASE_URL / REDIS_URL (see .env.example) at these.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: tailor-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tailor
+      POSTGRES_PASSWORD: tailor
+      POSTGRES_DB: tailor
+    ports:
+      - '5432:5432'
+    volumes:
+      - tailor-pgdata:/var/lib/postgresql/data
+      # Enables the `vector` extension on first init of an empty data volume.
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tailor -d tailor']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: tailor-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - tailor-redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  tailor-pgdata:
+  tailor-redisdata:

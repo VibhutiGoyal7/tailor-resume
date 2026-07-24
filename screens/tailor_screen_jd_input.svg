@@ -1,0 +1,27 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+  <ellipse cx="40" cy="80" rx="70" ry="55" fill="#EAEFF0" transform="rotate(-9 40 80)"/>
+  <circle cx="360" cy="130" r="6" fill="#D6E1E4"/>
+
+  <path d="M40 62 L28 72 L40 82" fill="none" stroke="#1D2226" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- paper airplane motif, small, top right of header -->
+  <g transform="translate(320,50)">
+    <circle cx="30" cy="30" r="34" fill="#DDE6E9"/>
+    <path d="M10 32 L52 16 L38 52 L31 36 L10 32 Z" fill="#2F4858"/>
+    <path d="M31 36 L38 52 L44 30 L31 36 Z" fill="#5B8AA6"/>
+  </g>
+
+  <text x="32" y="150" font-size="21" font-weight="500" fill="#1D2226">New tailored resume</text>
+  <text x="32" y="176" font-size="13" fill="#7B8681">Paste the job description below —</text>
+  <text x="32" y="196" font-size="13" fill="#7B8681">we'll figure out what it's really asking for.</text>
+
+  <path d="M32 224 H358 C363 224 368 228 368 234 V560 C368 566 362 570 358 570 H36 C30 570 26 566 26 560 V234 C26 228 30 224 32 224 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="252" font-size="13" fill="#A9B2B6">Senior Mobile Engineer</text>
+  <text x="42" y="272" font-size="13" fill="#A9B2B6">We're looking for someone with 5+ years</text>
+  <text x="42" y="292" font-size="13" fill="#A9B2B6">building React Native apps at scale,</text>
+  <text x="42" y="312" font-size="13" fill="#A9B2B6">strong ownership of CI/CD and release...</text>
+
+  <path d="M32 596 H326 C334 596 342 602 342 612 V634 C342 646 334 652 326 652 H48 C38 652 32 644 32 634 Z" fill="#2F4858"/>
+  <text x="187" y="630" text-anchor="middle" font-size="16" font-weight="500" fill="#F1F3F4">Find my match</text>
+</svg>

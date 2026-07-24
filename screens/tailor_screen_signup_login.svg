@@ -1,0 +1,61 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+
+  <ellipse cx="360" cy="50" rx="65" ry="50" fill="#E4EAEC" transform="rotate(10 360 50)"/>
+  <circle cx="24" cy="90" r="6" fill="#D6E1E4"/>
+
+  <!-- back arrow -->
+  <path d="M40 62 L28 72 L40 82" fill="none" stroke="#1D2226" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- small logo mark + wordmark, centered -->
+  <g transform="translate(163,42)">
+    <path d="M4 0 H36 C39 0 42 3 42 6 V32 C42 38 36 42 30 42 H10 C4 42 0 38 0 32 V10 C0 4 4 0 4 0 Z" fill="#2F4858"/>
+    <rect x="9" y="11" width="22" height="3" rx="1.5" fill="#F1F3F4" opacity="0.85"/>
+    <rect x="9" y="19" width="15" height="3" rx="1.5" fill="#F1F3F4" opacity="0.6"/>
+  </g>
+  <text x="195" y="112" text-anchor="middle" font-size="16" font-weight="500" fill="#1D2226">Tailor</text>
+
+  <!-- tab toggle -->
+  <path d="M32 140 H358 C364 140 368 144 368 150 V182 C368 188 364 192 358 192 H32 C26 192 22 188 22 182 V150 C22 144 26 140 32 140 Z"
+        fill="#DDE6E9"/>
+  <path d="M32 140 H198 C204 140 208 144 208 150 V182 C208 188 204 192 198 192 H32 C26 192 22 188 22 182 V150 C22 144 26 140 32 140 Z"
+        fill="#2F4858"/>
+  <text x="115" y="172" text-anchor="middle" font-size="15" font-weight="500" fill="#F1F3F4">Create account</text>
+  <text x="288" y="172" text-anchor="middle" font-size="15" fill="#4A5F6B">Log in</text>
+
+  <text x="32" y="234" font-size="20" font-weight="500" fill="#1D2226">Let's get you set up</text>
+  <text x="32" y="256" font-size="13" fill="#7B8681">Your experience bank starts here.</text>
+
+  <!-- Google continue button -->
+  <path d="M32 278 H358 C363 278 368 282 368 288 V316 C368 322 363 326 358 326 H36 C30 326 26 322 26 316 V288 C26 282 30 278 32 278 Z"
+        fill="#FFFFFF" stroke="#E4E9EB"/>
+  <circle cx="56" cy="302" r="9" fill="#DDE6E9"/>
+  <text x="56" y="306" text-anchor="middle" font-size="11" font-weight="500" fill="#2F4858">G</text>
+  <text x="205" y="306" text-anchor="middle" font-size="14" fill="#1D2226">Continue with Google</text>
+
+  <!-- divider -->
+  <line x1="32" y1="354" x2="150" y2="354" stroke="#E4E9EB"/>
+  <text x="195" y="359" text-anchor="middle" font-size="13" fill="#A9B2B6">or use email</text>
+  <line x1="240" y1="354" x2="358" y2="354" stroke="#E4E9EB"/>
+
+  <!-- email field -->
+  <text x="32" y="392" font-size="13" fill="#7B8681">Email</text>
+  <path d="M32 402 H358 C363 402 368 406 368 412 V440 C368 446 363 450 358 450 H36 C30 450 26 446 26 440 V412 C26 406 30 402 32 402 Z"
+        fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="44" y="430" font-size="14" fill="#A9B2B6">name@email.com</text>
+
+  <!-- password field -->
+  <text x="32" y="478" font-size="13" fill="#7B8681">Password</text>
+  <path d="M32 488 H358 C363 488 368 492 368 498 V526 C368 532 363 536 358 536 H36 C30 536 26 532 26 526 V498 C26 492 30 488 32 488 Z"
+        fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="44" y="516" font-size="14" fill="#A9B2B6">••••••••••</text>
+
+  <text x="32" y="560" font-size="12" fill="#7B8681">At least 8 characters, one number.</text>
+
+  <!-- primary CTA -->
+  <path d="M32 596 H326 C334 596 342 602 342 612 V634 C342 646 334 652 326 652 H48 C38 652 32 644 32 634 Z"
+        fill="#2F4858"/>
+  <text x="187" y="630" text-anchor="middle" font-size="16" font-weight="500" fill="#F1F3F4">Create account</text>
+
+  <text x="195" y="700" text-anchor="middle" font-size="14" fill="#4A5F6B">Already have an account? Log in</text>
+</svg>

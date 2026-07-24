@@ -1,0 +1,39 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+  <ellipse cx="30" cy="80" rx="65" ry="52" fill="#EAEFF0" transform="rotate(-9 30 80)"/>
+
+  <path d="M40 62 L28 72 L40 82" fill="none" stroke="#1D2226" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="32" y="132" font-size="21" font-weight="500" fill="#1D2226">Resume basics</text>
+  <text x="32" y="154" font-size="13" fill="#7B8681">Pulled into every tailored resume.</text>
+
+  <!-- signature flourish motif -->
+  <path d="M300 148 C 315 142, 325 156, 340 150 S 365 138, 372 148"
+        fill="none" stroke="#5B8AA6" stroke-width="2.5" stroke-linecap="round"/>
+
+  <text x="32" y="188" font-size="12" fill="#7B8681">Full name</text>
+  <path d="M32 196 H358 C362 196 366 200 366 204 V228 C366 232 362 236 358 236 H36 C32 236 28 232 28 228 V204 C28 200 32 196 32 196 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="220" font-size="13" fill="#1D2226">Nikhil Verma</text>
+
+  <text x="32" y="258" font-size="12" fill="#7B8681">Phone</text>
+  <path d="M32 266 H190 C194 266 198 270 198 274 V298 C198 302 194 306 190 306 H36 C32 306 28 302 28 298 V274 C28 270 32 266 32 266 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="290" font-size="13" fill="#A9B2B6">Optional</text>
+  <text x="212" y="258" font-size="12" fill="#7B8681">Location</text>
+  <path d="M212 266 H358 C362 266 366 270 366 274 V298 C366 302 362 306 358 306 H216 C212 306 208 302 208 298 V274 C208 270 212 266 212 266 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="222" y="290" font-size="13" fill="#1D2226">Bengaluru, IN</text>
+
+  <text x="32" y="328" font-size="12" fill="#7B8681">Links (all optional)</text>
+  <path d="M32 336 H358 C362 336 366 340 366 344 V368 C366 372 362 376 358 376 H36 C32 376 28 372 28 368 V344 C28 340 32 336 32 336 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="360" font-size="13" fill="#1D2226">LinkedIn</text>
+  <path d="M32 382 H358 C362 382 366 386 366 390 V414 C366 418 362 422 358 422 H36 C32 422 28 418 28 414 V390 C28 386 32 382 32 382 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="406" font-size="13" fill="#A9B2B6">Portfolio (optional)</text>
+  <path d="M32 428 H358 C362 428 366 432 366 436 V460 C366 464 362 468 358 468 H36 C32 468 28 464 28 460 V436 C28 432 32 428 32 428 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="452" font-size="13" fill="#A9B2B6">GitHub (optional)</text>
+
+  <text x="32" y="500" font-size="12" fill="#7B8681">Summary</text>
+  <path d="M32 508 H358 C362 508 366 512 366 516 V590 C366 596 362 600 358 600 H36 C32 600 28 596 28 590 V516 C28 512 32 508 32 508 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="532" font-size="13" fill="#1D2226">Mobile engineer with 3 years building</text>
+  <text x="42" y="552" font-size="13" fill="#1D2226">production React Native and Flutter apps...</text>
+
+  <path d="M32 636 H326 C334 636 342 642 342 652 V674 C342 686 334 692 326 692 H48 C38 692 32 684 32 674 Z" fill="#2F4858"/>
+  <text x="187" y="670" text-anchor="middle" font-size="15" font-weight="500" fill="#F1F3F4">Save</text>
+</svg>

@@ -1,0 +1,39 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+  <ellipse cx="360" cy="60" rx="60" ry="48" fill="#E4EAEC" transform="rotate(8 360 60)"/>
+
+  <path d="M40 62 L28 72 L40 82" fill="none" stroke="#1D2226" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="32" y="132" font-size="21" font-weight="500" fill="#1D2226">Review what we found</text>
+  <text x="32" y="158" font-size="13" fill="#7B8681">Nothing saves until you say so.</text>
+
+  <!-- bullet card 1 -->
+  <path d="M32 186 H358 C363 186 368 190 368 196 V254 C368 260 363 264 358 264 H36 C30 264 26 260 26 254 V196 C26 190 30 186 32 186 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="210" font-size="13" fill="#1D2226">Led migration to a new checkout flow,</text>
+  <text x="42" y="228" font-size="13" fill="#1D2226">cutting cart abandonment by 18%</text>
+  <path d="M300 236 H136 C130 236 126 232 126 226" fill="none"/>
+  <path d="M136 240 H182 C186 240 190 244 190 248" fill="none" stroke="#DDE6E9"/>
+  <path d="M42 240 H60 C64 240 68 244 68 248 V250 C68 254 64 256 60 256 H44 C40 256 42 250 42 250 Z" fill="none"/>
+  <text x="42" y="250" font-size="10" fill="#5B8AA6">from: Senior Engineer, Acme Co.</text>
+  <circle cx="300" cy="212" r="13" fill="#DDE6E9"/>
+  <path d="M295 212 L299 216 L306 208" stroke="#2F4858" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="330" cy="212" r="13" fill="#F1F3F4" stroke="#E4E9EB"/>
+  <path d="M325 212 H335" stroke="#7B8681" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- bullet card 2 -->
+  <path d="M32 276 H358 C363 276 368 280 368 286 V334 C368 340 363 344 358 344 H36 C30 344 26 340 26 334 V286 C26 280 30 276 32 276 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="300" font-size="13" fill="#1D2226">Owned the mobile CI/CD pipeline</text>
+  <text x="42" y="330" font-size="10" fill="#5B8AA6">from: Senior Engineer, Acme Co.</text>
+  <circle cx="300" cy="302" r="13" fill="#DDE6E9"/>
+  <path d="M295 302 L299 306 L306 298" stroke="#2F4858" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="330" cy="302" r="13" fill="#F1F3F4" stroke="#E4E9EB"/>
+  <path d="M325 302 H335" stroke="#7B8681" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- bullet card 3 - rejected state, muted -->
+  <path d="M32 356 H358 C363 356 368 360 368 366 V414 C368 420 363 424 358 424 H36 C30 424 26 420 26 414 V366 C26 360 30 356 32 356 Z" fill="#F1F3F4" stroke="#E4E9EB"/>
+  <text x="42" y="380" font-size="13" fill="#A9B2B6" text-decoration="line-through">Attended weekly stand-ups</text>
+  <text x="42" y="410" font-size="10" fill="#A9B2B6">from: Senior Engineer, Acme Co.</text>
+  <circle cx="330" cy="382" r="13" fill="#DDE6E9" opacity="0.5"/>
+
+  <path d="M32 460 H326 C334 460 342 466 342 476 V498 C342 510 334 516 326 516 H48 C38 516 32 508 32 498 Z" fill="#2F4858"/>
+  <text x="187" y="494" text-anchor="middle" font-size="15" font-weight="500" fill="#F1F3F4">Add 2 to my bank</text>
+</svg>

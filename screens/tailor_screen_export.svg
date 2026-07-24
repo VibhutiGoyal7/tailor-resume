@@ -1,0 +1,33 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+  <ellipse cx="40" cy="90" rx="70" ry="55" fill="#EAEFF0" transform="rotate(-9 40 90)"/>
+  <circle cx="360" cy="140" r="6" fill="#D6E1E4"/>
+
+  <path d="M40 62 L28 72 L40 82" fill="none" stroke="#1D2226" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- paper airplane success motif -->
+  <g transform="translate(140,120)">
+    <circle cx="55" cy="55" r="70" fill="#DDE6E9"/>
+    <path d="M20 60 L95 30 L70 95 L58 68 L20 60 Z" fill="#2F4858"/>
+    <path d="M58 68 L70 95 L78 60 L58 68 Z" fill="#5B8AA6"/>
+  </g>
+
+  <text x="195" y="326" text-anchor="middle" font-size="22" font-weight="500" fill="#1D2226">Your resume is ready</text>
+  <text x="195" y="350" text-anchor="middle" font-size="13" fill="#7B8681">Choose a format to export.</text>
+
+  <!-- format options -->
+  <g transform="rotate(-1 195 410)">
+    <path d="M32 384 H358 C364 384 368 390 368 396 V424 C368 430 364 434 358 434 H38 C32 434 26 430 26 424 V396 C26 390 30 384 32 384 Z" fill="#FFFFFF" stroke="#2F4858" stroke-width="2"/>
+    <text x="46" y="414" font-size="15" font-weight="500" fill="#1D2226">PDF</text>
+    <text x="330" y="414" text-anchor="end" font-size="12" fill="#7B8681">Recommended</text>
+  </g>
+  <g transform="rotate(1 195 458)">
+    <path d="M32 442 H358 C364 442 368 448 368 454 V482 C368 488 364 492 358 492 H38 C32 492 26 488 26 482 V454 C26 448 30 442 32 442 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+    <text x="46" y="472" font-size="15" fill="#1D2226">Word (.docx)</text>
+  </g>
+
+  <path d="M32 540 H326 C334 540 342 546 342 556 V578 C342 590 334 596 326 596 H48 C38 596 32 588 32 578 Z" fill="#2F4858"/>
+  <text x="187" y="572" text-anchor="middle" font-size="16" font-weight="500" fill="#F1F3F4">Download PDF</text>
+
+  <text x="195" y="632" text-anchor="middle" font-size="13" fill="#4A5F6B">Share instead</text>
+</svg>

@@ -1,0 +1,38 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+  <ellipse cx="360" cy="60" rx="60" ry="48" fill="#E4EAEC" transform="rotate(8 360 60)"/>
+
+  <path d="M40 62 L28 72 L40 82" fill="none" stroke="#1D2226" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="32" y="132" font-size="21" font-weight="500" fill="#1D2226">Here's what we found</text>
+  <text x="32" y="154" font-size="13" fill="#7B8681">Matched against: Senior Mobile Engineer</text>
+  <text x="32" y="172" font-size="13" fill="#7B8681">Uncheck anything that's not a fit.</text>
+
+  <!-- candidate 1 -->
+  <path d="M32 196 H358 C363 196 368 200 368 206 V244 C368 250 363 254 358 254 H36 C30 254 26 250 26 244 V206 C26 200 30 196 32 196 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="216" font-size="13" fill="#1D2226">Led migration to a new checkout flow,</text>
+  <text x="42" y="234" font-size="13" fill="#1D2226">cutting cart abandonment by 18%</text>
+  <circle cx="336" cy="224" r="13" fill="#2F4858"/>
+  <path d="M330 224 L334 228 L342 219" stroke="#F1F3F4" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- candidate 2 -->
+  <path d="M32 264 H358 C363 264 368 268 368 274 V300 C368 306 363 310 358 310 H36 C30 310 26 306 26 300 V274 C26 268 30 264 32 264 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="288" font-size="13" fill="#1D2226">Owned the mobile CI/CD pipeline</text>
+  <circle cx="336" cy="286" r="13" fill="#2F4858"/>
+  <path d="M330 286 L334 290 L342 281" stroke="#F1F3F4" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- candidate 3 -->
+  <path d="M32 320 H358 C363 320 368 324 368 330 V356 C368 362 363 366 358 366 H36 C30 366 26 362 26 356 V330 C26 324 30 320 32 320 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="344" font-size="13" fill="#1D2226">Shipped the React Native rewrite</text>
+  <circle cx="336" cy="342" r="13" fill="#2F4858"/>
+  <path d="M330 342 L334 346 L342 337" stroke="#F1F3F4" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- candidate 4 - unchecked (low relevance) -->
+  <path d="M32 376 H358 C363 376 368 380 368 386 V412 C368 418 363 422 358 422 H36 C30 422 26 418 26 412 V386 C26 380 30 376 32 376 Z" fill="#F1F3F4" stroke="#E4E9EB"/>
+  <text x="42" y="400" font-size="13" fill="#A9B2B6">Coordinated team offsite planning</text>
+  <circle cx="336" cy="398" r="13" fill="#FFFFFF" stroke="#A9B2B6"/>
+
+  <text x="32" y="452" font-size="12" fill="#7B8681">3 selected, 1 unchecked</text>
+
+  <path d="M32 480 H326 C334 480 342 486 342 496 V518 C342 530 334 536 326 536 H48 C38 536 32 528 32 518 Z" fill="#2F4858"/>
+  <text x="187" y="514" text-anchor="middle" font-size="15" font-weight="500" fill="#F1F3F4">Looks good, write my resume</text>
+</svg>

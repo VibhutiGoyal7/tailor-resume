@@ -1,0 +1,62 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="100" cy="100" r="70" fill="#DDE6E9"/>
+
+  <!-- resume page silhouette, target shape -->
+  <rect x="65" y="42" width="70" height="100" rx="6" fill="none" stroke="#A9B2B6" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.6"/>
+
+  <!-- bar 1: title bar -->
+  <g transform="translate(75,58)">
+    <animateTransform attributeName="transform" type="translate" additive="sum"
+      values="0,60; 0,0; 0,0; 0,60; 0,60"
+      keyTimes="0; 0.1667; 0.8333; 0.9583; 1"
+      dur="2.4s" repeatCount="indefinite"/>
+    <rect x="0" y="0" width="55" height="10" rx="3" fill="#2F4858">
+      <animate attributeName="opacity"
+        values="0;1;1;0;0"
+        keyTimes="0; 0.1667; 0.8333; 0.9583; 1"
+        dur="2.4s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- bar 2 -->
+  <g transform="translate(75,78)">
+    <animateTransform attributeName="transform" type="translate" additive="sum"
+      values="0,60; 0,60; 0,0; 0,0; 0,60; 0,60; 0,60"
+      keyTimes="0; 0.1667; 0.3333; 0.8333; 0.8333; 0.9583; 1"
+      dur="2.4s" repeatCount="indefinite"/>
+    <rect x="0" y="0" width="45" height="8" rx="3" fill="#5B8AA6">
+      <animate attributeName="opacity"
+        values="0;0;1;1;0;0;0"
+        keyTimes="0; 0.1667; 0.3333; 0.8333; 0.8333; 0.9583; 1"
+        dur="2.4s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- bar 3 -->
+  <g transform="translate(75,96)">
+    <animateTransform attributeName="transform" type="translate" additive="sum"
+      values="0,60; 0,60; 0,0; 0,0; 0,60; 0,60; 0,60"
+      keyTimes="0; 0.3333; 0.5; 0.8333; 0.8333; 0.9583; 1"
+      dur="2.4s" repeatCount="indefinite"/>
+    <rect x="0" y="0" width="50" height="8" rx="3" fill="#5B8AA6">
+      <animate attributeName="opacity"
+        values="0;0;1;1;0;0;0"
+        keyTimes="0; 0.3333; 0.5; 0.8333; 0.8333; 0.9583; 1"
+        dur="2.4s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- bar 4 -->
+  <g transform="translate(75,114)">
+    <animateTransform attributeName="transform" type="translate" additive="sum"
+      values="0,60; 0,60; 0,0; 0,0; 0,60; 0,60; 0,60"
+      keyTimes="0; 0.5; 0.6667; 0.8333; 0.8333; 0.9583; 1"
+      dur="2.4s" repeatCount="indefinite"/>
+    <rect x="0" y="0" width="38" height="8" rx="3" fill="#5B8AA6">
+      <animate attributeName="opacity"
+        values="0;0;1;1;0;0;0"
+        keyTimes="0; 0.5; 0.6667; 0.8333; 0.8333; 0.9583; 1"
+        dur="2.4s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+</svg>

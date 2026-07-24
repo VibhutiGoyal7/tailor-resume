@@ -1,0 +1,15 @@
+{
+  "name": "@tailor/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "comment": "Prisma CLI commands are run from the repo ROOT (npm run db:*) so the single root .env is loaded — running `prisma` from inside this package would not find the root .env. See root package.json scripts.",
+  "dependencies": {
+    "@prisma/client": "^6.2.1"
+  }
+}

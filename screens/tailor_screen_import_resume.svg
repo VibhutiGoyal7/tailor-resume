@@ -1,0 +1,31 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+  <ellipse cx="40" cy="90" rx="70" ry="55" fill="#EAEFF0" transform="rotate(-9 40 90)"/>
+
+  <path d="M40 62 L28 72 L40 82" fill="none" stroke="#1D2226" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="32" y="132" font-size="21" font-weight="500" fill="#1D2226">Import from resume</text>
+  <text x="32" y="158" font-size="13" fill="#7B8681">Upload a PDF or DOCX, we'll do the rest.</text>
+
+  <!-- upload dropzone -->
+  <path d="M32 190 H358 C363 190 368 194 368 200 V330 C368 336 363 340 358 340 H36 C30 340 26 336 26 330 V200 C26 194 30 190 32 190 Z"
+        fill="#FFFFFF" stroke="#A9B2B6" stroke-dasharray="6 5"/>
+  <circle cx="195" cy="245" r="24" fill="#DDE6E9"/>
+  <path d="M195 235 V257 M186 244 L195 235 L204 244" stroke="#2F4858" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="195" y="292" text-anchor="middle" font-size="14" fill="#1D2226">Tap to choose a file</text>
+  <text x="195" y="312" text-anchor="middle" font-size="12" fill="#7B8681">PDF or DOCX, up to 5MB</text>
+
+  <!-- staged progress (shown after upload) -->
+  <text x="32" y="392" font-size="13" font-weight="500" fill="#1D2226">Processing your resume</text>
+
+  <circle cx="46" cy="426" r="10" fill="#2F4858"/>
+  <path d="M42 426 L45 429 L51 422" stroke="#F1F3F4" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="66" y="431" font-size="13" fill="#1D2226">Reading the document</text>
+
+  <line x1="46" y1="438" x2="46" y2="462" stroke="#E4E9EB" stroke-width="2"/>
+  <circle cx="46" cy="474" r="10" fill="#5B8AA6"/>
+  <text x="66" y="479" font-size="13" fill="#1D2226">Extracting your experience</text>
+
+  <line x1="46" y1="486" x2="46" y2="510" stroke="#E4E9EB" stroke-width="2"/>
+  <circle cx="46" cy="522" r="10" fill="none" stroke="#A9B2B6" stroke-width="2"/>
+  <text x="66" y="527" font-size="13" fill="#7B8681">Ready for your review</text>
+</svg>

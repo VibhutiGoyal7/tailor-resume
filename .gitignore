@@ -1,7 +1,31 @@
 node_modules/
 .env
 .env.local
+.env.*.local
 dist/
 build/
 *.log
+
+# Next.js
+.next/
+next-env.d.ts
+
+# Expo / React Native
+.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Prisma generated client
+packages/db/generated/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# OS
 .DS_Store

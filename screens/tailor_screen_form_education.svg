@@ -1,0 +1,32 @@
+<svg viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F1F3F4"/>
+  <ellipse cx="360" cy="70" rx="65" ry="52" fill="#E4EAEC" transform="rotate(10 360 70)"/>
+
+  <path d="M40 62 L28 72 L40 82" fill="none" stroke="#1D2226" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="32" y="132" font-size="21" font-weight="500" fill="#1D2226">Add education</text>
+
+  <text x="32" y="168" font-size="12" fill="#7B8681">School</text>
+  <path d="M32 176 H358 C362 176 366 180 366 184 V208 C366 212 362 216 358 216 H36 C32 216 28 212 28 208 V184 C28 180 32 176 32 176 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="200" font-size="13" fill="#A9B2B6">State University</text>
+
+  <text x="32" y="238" font-size="12" fill="#7B8681">Degree</text>
+  <path d="M32 246 H190 C194 246 198 250 198 254 V278 C198 282 194 286 190 286 H36 C32 286 28 282 28 278 V254 C28 250 32 246 32 246 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="270" font-size="13" fill="#A9B2B6">B.Tech</text>
+  <text x="212" y="238" font-size="12" fill="#7B8681">Field</text>
+  <path d="M212 246 H358 C362 246 366 250 366 254 V278 C366 282 362 286 358 286 H216 C212 286 208 282 208 278 V254 C208 250 212 246 212 246 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="222" y="270" font-size="13" fill="#A9B2B6">Comp. Science</text>
+
+  <text x="32" y="308" font-size="12" fill="#7B8681">Start year</text>
+  <path d="M32 316 H190 C194 316 198 320 198 324 V348 C198 352 194 356 190 356 H36 C32 356 28 352 28 348 V324 C28 320 32 316 32 316 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="340" font-size="13" fill="#A9B2B6">2015</text>
+  <text x="212" y="308" font-size="12" fill="#7B8681">End year</text>
+  <path d="M212 316 H358 C362 316 366 320 366 324 V348 C366 352 362 356 358 356 H216 C212 356 208 352 208 348 V324 C208 320 212 316 212 316 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="222" y="340" font-size="13" fill="#A9B2B6">2019</text>
+
+  <text x="32" y="378" font-size="12" fill="#7B8681">Notable coursework, honors, activities</text>
+  <path d="M32 386 H358 C362 386 366 390 366 394 V460 C366 466 362 470 358 470 H36 C32 470 28 466 28 460 V394 C28 390 32 386 32 386 Z" fill="#FFFFFF" stroke="#E4E9EB"/>
+  <text x="42" y="410" font-size="13" fill="#A9B2B6">Optional</text>
+
+  <path d="M32 510 H326 C334 510 342 516 342 526 V548 C342 560 334 566 326 566 H48 C38 566 32 558 32 548 Z" fill="#2F4858"/>
+  <text x="187" y="544" text-anchor="middle" font-size="15" font-weight="500" fill="#F1F3F4">Save</text>
+</svg>
