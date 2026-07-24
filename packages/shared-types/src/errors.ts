@@ -53,6 +53,42 @@ export function validationError(
   return makeError(ERROR_CODES.VALIDATION_FAILED, message, fields);
 }
 
+/** Map each error code to its default HTTP status. */
+export const ERROR_STATUS: Record<ErrorCode, number> = {
+  VALIDATION_FAILED: 400,
+  INVALID_CREDENTIALS: 401,
+  UNAUTHENTICATED: 401,
+  UNAUTHORIZED: 403,
+  NOT_FOUND: 404,
+  CONFLICT: 409,
+  RATE_LIMITED: 429,
+  INTERNAL: 500,
+};
+
+/**
+ * Application error carrying a stable `code`, an HTTP `status`, and optional
+ * per-field detail. Thrown by module facades; the web layer's single error
+ * handler catches it and serializes via `toBody()` into the canonical shape,
+ * so no route hand-rolls error JSON (CLAUDE.md Section 4).
+ */
+export class AppError extends Error {
+  readonly code: ErrorCode;
+  readonly status: number;
+  readonly fields?: FieldIssue[];
+
+  constructor(code: ErrorCode, message: string, fields?: FieldIssue[]) {
+    super(message);
+    this.name = 'AppError';
+    this.code = code;
+    this.status = ERROR_STATUS[code];
+    if (fields && fields.length > 0) this.fields = fields;
+  }
+
+  toBody(): ApiErrorBody {
+    return makeError(this.code, this.message, this.fields);
+  }
+}
+
 /** Type guard for narrowing an unknown parsed response into an ApiErrorBody. */
 export function isApiErrorBody(value: unknown): value is ApiErrorBody {
   if (typeof value !== 'object' || value === null) return false;
