@@ -22,6 +22,8 @@
 | Templates | 3 — Clean/ATS-safe, Modern two-column, Compact/dense (ADR-018) |
 | Screens designed | All 25 (Home + 24), full visual design, dusty-denim system |
 | Build brief | Exists — `tailor-build-brief.md` |
+| Build progress | **Milestone 1 (repo scaffold) complete** — npm-workspaces monorepo, Docker Compose (Postgres+pgvector, Redis), full Prisma schema, ESLint/Prettier, Vitest, GitHub Actions CI, README. Lint/format/test green (37 tests). Auth (Milestone 2) is next. |
+| Repo tooling | npm workspaces · TypeScript · Vitest · ESLint 9 (flat) + Prettier · tsx (worker dev) — see Section 5 |
 | Deploy status | Not live; not deploying imminently (owner's explicit call, Session 4) |
 
 ---
@@ -313,6 +315,11 @@ Async operations expose the same reality as their underlying module contracts �
 | Auth | Self-rolled JWT (argon2 hashing, access+refresh token pair with rotation, rate-limited to 7 attempts) + Resend (transactional email for verification/reset) + **Firebase Auth for Google OAuth handshake only** (backend verifies the Firebase ID token, then issues our own token pair — ADR-010 addendum) | See ADR-010 |
 | Infra | Docker Compose locally; Render or Railway for deploy; GitHub Actions for CI/CD | Dockerizing + CI/CD explicitly scheduled as its own milestone, not skipped, for resume value |
 | Observability | Basic structured logging + one dashboard | Shows production-mindedness |
+| Monorepo tooling | **npm workspaces** (no pnpm/yarn/turborepo) — `apps/*` + `packages/*` (decided, Milestone 1) | Built into npm; no extra tool to justify for a repo this size. `apps/web`, `apps/worker`, `apps/mobile` + `packages/db`, `packages/modules`, `packages/shared-types` |
+| Language / build | **TypeScript** throughout; shared `packages/*` consumed as source (Next `transpilePackages`, worker via `tsx`) (decided, Milestone 1) | Single language across web/worker/mobile/shared code |
+| Testing | **Vitest** (workspace mode, `vitest run` from root), tests colocated as `*.test.ts` (decided, Milestone 1) | Fast, native ESM/TS, one runner across all packages; satisfies ADR-019 |
+| Lint / format | **ESLint 9 flat config** (`typescript-eslint`) + **Prettier**, `no-console` enforced (CLAUDE.md §3) (decided, Milestone 1) | Clean-on-scaffold; CI runs `format:check` + `lint` + `test` on every PR to `dev`/`main` |
+| Worker dev runner | **tsx** (`tsx watch`) for the plain-Node worker (decided, Milestone 1) | Runs the TS worker directly in dev without a separate build step |
 
 ---
 
