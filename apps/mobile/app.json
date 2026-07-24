@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Tailor",
+    "slug": "tailor",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "tailor",
+    "splash": {
+      "backgroundColor": "#F1F3F4"
+    },
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F1F3F4"
+      }
+    }
+  }
+}

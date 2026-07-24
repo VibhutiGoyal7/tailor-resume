@@ -1,0 +1,40 @@
+{
+  "name": "tailor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tailor — resume tailoring engine (Phase 1). Modular monolith: web (Next.js API) + worker (Node) + mobile (Expo), sharing db/modules/shared-types.",
+  "type": "module",
+  "engines": {
+    "node": ">=20 <=23"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -b --verbose",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "prisma generate --schema packages/db/prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema packages/db/prisma/schema.prisma",
+    "db:migrate:deploy": "prisma migrate deploy --schema packages/db/prisma/schema.prisma",
+    "db:studio": "prisma studio --schema packages/db/prisma/schema.prisma",
+    "db:validate": "prisma validate --schema packages/db/prisma/schema.prisma",
+    "db:format": "prisma format --schema packages/db/prisma/schema.prisma"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^22.10.5",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "prisma": "^6.2.1",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^2.1.8"
+  }
+}

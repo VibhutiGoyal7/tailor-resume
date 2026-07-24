@@ -1,0 +1,103 @@
+// Tailor — Prisma schema (Phase 1 tables only), per build brief Section 4.
+// pgvector is enabled via the postgresqlExtensions preview feature so the
+// ExperienceBullet.embedding vector(1024) column can be created by migrations.
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../generated/client"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+model ExperienceItem {
+  id               String             @id @default(cuid())
+  userId           String
+  type             String // "role" | "project" | "education" | "skill"
+  rawInput         String
+  source           String // "structured_form" | "freeform_extracted"
+  structuredFields Json
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  bullets          ExperienceBullet[]
+
+  @@index([userId])
+}
+
+model ExperienceBullet {
+  id               String                       @id @default(cuid())
+  experienceItemId String
+  text             String
+  tags             String[]
+  impactMetric     String?
+  status           String // "suggested" | "accepted" | "edited" | "rejected"
+  embedding        Unsupported("vector(1024)") // pgvector, dims per voyage-4 model
+  experienceItem   ExperienceItem               @relation(fields: [experienceItemId], references: [id])
+
+  @@index([experienceItemId])
+}
+
+model ResumeBasics {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  fullName  String
+  phone     String?
+  location  String?
+  links     Json // { linkedin, portfolio, github }
+  summary   String?
+  updatedAt DateTime @updatedAt
+}
+
+model TailoredResume {
+  id                    String   @id @default(cuid())
+  userId                String
+  jdText                String
+  jdParsed              Json // { required_skills[], role_type, seniority, company_type, key_responsibilities[] }
+  templateId            String
+  sectionOrder          String[]
+  hiddenSections        String[]
+  layoutVariantId       String?
+  selectedBulletIds     String[]
+  retrievedCandidateIds String[] // full candidate set, pre-confirmation (ADR-017)
+  renderedContent       Json?
+  version               Int      @default(1)
+  createdAt             DateTime @default(now())
+
+  @@index([userId])
+}
+
+model TailoringJob {
+  id               String   @id @default(cuid())
+  userId           String
+  tailoredResumeId String?
+  stage            String // "parsing" | "retrieving" | "awaiting_confirmation" | "generating" | "done" | "failed"
+  failedStage      String? // which stage failed, if any — drives ADR-015 stage-aware retry UI
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String // never store raw refresh tokens (ADR-010)
+  revoked   Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tokenHash])
+}
