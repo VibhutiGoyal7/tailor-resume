@@ -78,12 +78,18 @@ For Phase 1, three modules are built: **`auth`**, `profile`, and `resume-engine`
 ```ts
 // packages/modules/auth/index.ts
 export const authModule = {
-  signup(input) { ... },              // -> AuthUser (does not log in; contract: 201)
+  signup(input) { ... },              // -> AuthUser (does not log in; contract: 201; sends verify email)
   login(input) { ... },               // -> { user, tokens }  (argon2 verify + issue pair)
   refresh(rawRefreshToken) { ... },   // rotate + reuse-detection (ADR-010)
   logout(rawRefreshToken) { ... },    // revoke (idempotent)
   verifyAccessToken(token) { ... },   // -> { userId }  (used by requireAuth middleware)
-  // next slice: verifyEmail, forgotPassword, resetPassword, googleSignIn, account ops
+  verifyEmail(rawToken) { ... },      // consume email_verify token -> emailVerified = true
+  forgotPassword(email) { ... },      // send reset link (silent for unknown email)
+  resetPassword(rawToken, newPw) { ... }, // consume password_reset token, revoke all sessions
+  getAccount(userId) { ... },         // -> { email, emailVerified, createdAt }
+  changePassword(userId, cur, next) { ... }, // verify current, revoke other sessions
+  deleteAccount(userId) { ... },      // manual cascade over all user-owned rows
+  // slice 2b: googleSignIn(firebaseIdToken)
 };
 
 // packages/modules/profile/index.ts
@@ -202,6 +208,22 @@ model RefreshToken {
 ```
 
 Note: `TailoringJob` isn't in the original project doc's Section 6 table but is required to make ADR-015 (stage-level polling) and ADR-017 (two-phase confirm) actually implementable — it's the row `GET /resumes/jobs/:jobId` reads.
+
+Note (Milestone 2, slice 2): added `VerificationToken` — single-use tokens for **email verification** and **password reset**, distinguished by a `type` field (`"email_verify" | "password_reset"`). Stored hashed (sha256) with an `expiresAt` and a nullable `usedAt` (single-use). This is the "token stored server-side with expiry" that Section 6 requires; it wasn't enumerated in the original data model.
+
+```prisma
+model VerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String
+  type      String   // "email_verify" | "password_reset"
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId])
+  @@index([tokenHash])
+}
+```
 
 ---
 

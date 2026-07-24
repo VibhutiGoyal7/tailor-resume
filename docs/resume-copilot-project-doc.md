@@ -22,7 +22,7 @@
 | Templates | 3 — Clean/ATS-safe, Modern two-column, Compact/dense (ADR-018) |
 | Screens designed | All 25 (Home + 24), full visual design, dusty-denim system |
 | Build brief | Exists — `tailor-build-brief.md` |
-| Build progress | **Milestone 2 (auth) in progress.** M1 scaffold complete. M2 slice 1 done: email/password signup, login, refresh (rotation + reuse-detection, ADR-010), logout, protected-route middleware, argon2 hashing, 7-attempt rate limiting — `auth` is a dedicated module (`packages/modules/auth`). Next slice: email verification, password reset, Google sign-in, account routes. Lint/format/test green (73 tests; DB integration tests run in CI + via `RUN_DB_TESTS=1`). |
+| Build progress | **Milestone 2 (auth) in progress.** M1 scaffold complete. M2 slice 1 (email/password signup, login, refresh rotation + reuse-detection, logout, protected middleware, argon2, rate limiting) and slice 2 (email verification, forgot/reset password, account read/change-password/delete — all via a new `VerificationToken` table + Resend/dev email abstraction + pino backend logging) done. `auth` is a dedicated module (`packages/modules/auth`). Remaining (slice 2b): Google sign-in (firebase-admin). Lint/format/test green (99 tests; DB integration tests run in CI + via `RUN_DB_TESTS=1`). |
 | Repo tooling | npm workspaces · TypeScript · Vitest · ESLint 9 (flat) + Prettier · tsx (worker dev) — see Section 5 |
 | Deploy status | Not live; not deploying imminently (owner's explicit call, Session 4) |
 
@@ -322,6 +322,8 @@ Async operations expose the same reality as their underlying module contracts �
 | Worker dev runner | **tsx** (`tsx watch`) for the plain-Node worker (decided, Milestone 1) | Runs the TS worker directly in dev without a separate build step |
 | JWT library | **jose** (HS256 sign/verify) for access tokens (decided, Milestone 2) | Pure-JS, ESM-native, no native build; "self-rolled JWT" per ADR-010 means our own issue/rotate logic, not our own crypto |
 | Request validation | **zod** — schemas in `packages/shared-types`, shared by routes + tests (decided, Milestone 2) | One schema source for validation and inferred TS types |
+| Backend logging | **pino** (structured), shared `logger` in `@tailor/modules` (decided, Milestone 2) | ADR/CLAUDE.md Section 3; child loggers carry requestId/jobId. Log-shipping dashboard still deferred to deploy |
+| Transactional email | **Resend** behind an `EmailSender` interface; dev/no-key fallback logs links instead of sending (decided, Milestone 2) | Verification + password-reset emails; interface keeps the facade testable with a fake sender |
 
 ---
 

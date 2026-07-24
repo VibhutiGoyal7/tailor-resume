@@ -53,21 +53,33 @@ npm run start --workspace @tailor/mobile   # Expo dev server
 
 Health check once `web` is up: `curl http://localhost:3000/api/health` → `{"status":"ok","service":"web"}`.
 
-## Auth endpoints (Milestone 2, slice 1)
+## Auth & account endpoints (Milestone 2)
 
-Email/password auth is live (`apps/web/app/api/auth/*`):
+Email/password auth + account management are live (`apps/web/app/api/`):
 
-| Method + path            | Body                  | Result                                        |
-| ------------------------ | --------------------- | --------------------------------------------- |
-| `POST /api/auth/signup`  | `{ email, password }` | `201 { user }`                                |
-| `POST /api/auth/login`   | `{ email, password }` | `200 { accessToken, refreshToken, user }`     |
-| `POST /api/auth/refresh` | `{ refreshToken }`    | `200 { accessToken, refreshToken }` (rotates) |
-| `POST /api/auth/logout`  | `{ refreshToken }`    | `204`                                         |
+| Method + path                    | Body                                        | Result                                        |
+| -------------------------------- | ------------------------------------------- | --------------------------------------------- |
+| `POST /api/auth/signup`          | `{ email, password }`                       | `201 { user }` (sends verification email)     |
+| `POST /api/auth/login`           | `{ email, password }`                       | `200 { accessToken, refreshToken, user }`     |
+| `POST /api/auth/refresh`         | `{ refreshToken }`                          | `200 { accessToken, refreshToken }` (rotates) |
+| `POST /api/auth/logout`          | `{ refreshToken }`                          | `204`                                         |
+| `POST /api/auth/verify-email`    | `{ token }`                                 | `200 { user }`                                |
+| `POST /api/auth/forgot-password` | `{ email }`                                 | `200` (always; no enumeration)                |
+| `POST /api/auth/reset-password`  | `{ token, newPassword }`                    | `200` (revokes all sessions)                  |
+| `GET /api/account`               | — (Bearer)                                  | `200 { email, emailVerified, createdAt }`     |
+| `PATCH /api/account/password`    | `{ currentPassword, newPassword }` (Bearer) | `200`                                         |
+| `DELETE /api/account`            | — (Bearer)                                  | `204` (cascades all user-owned rows)          |
 
 Protected routes use `requireAuth(req)` (Bearer access token). Access tokens last
 15 min; refresh tokens rotate on every use and a reused (revoked) token revokes
-the whole session (ADR-010). Login/signup are rate-limited to 7 attempts / 15 min.
-_Next slice: email verification, password reset, Google sign-in, account routes._
+the whole session (ADR-010). Login/signup/forgot are rate-limited to 7 attempts /
+15 min. Verification + reset tokens are single-use and expire in 1 hour.
+
+**Email in dev:** with no `RESEND_API_KEY` set, verification/reset emails aren't
+sent — the link is logged to the server output (look for `[dev-email]`). Set
+`PUBLIC_APP_URL` to control the link's base URL.
+
+_Remaining (slice 2b): Google sign-in._
 
 ## Quality gates (run before pushing)
 
