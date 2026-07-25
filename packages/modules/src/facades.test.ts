@@ -2,21 +2,12 @@
 // until its milestone lands, fails consistently with NotImplementedError rather
 // than silently returning undefined. Real behavior tests replace these per method
 // as each is implemented.
+//
+// profileModule is implemented (Milestone 3) — its behavior is covered by
+// profile/profile.test.ts. Only resume-engine remains a stub here.
 import { describe, expect, it } from 'vitest';
 import { NotImplementedError } from './common.js';
-import { profileModule } from './profile/index.js';
 import { resumeEngine } from './resume-engine/index.js';
-
-describe('profileModule facade', () => {
-  it.each([
-    ['getExperienceBank', () => profileModule.getExperienceBank('u1')],
-    ['addExperienceItem', () => profileModule.addExperienceItem('u1', { type: 'role' })],
-    ['getResumeBasics', () => profileModule.getResumeBasics('u1')],
-    ['updateResumeBasics', () => profileModule.updateResumeBasics('u1', { fullName: 'Ada' })],
-  ])('%s throws NotImplementedError in the scaffold', (_name, call) => {
-    expect(call).toThrow(NotImplementedError);
-  });
-});
 
 describe('resumeEngine facade', () => {
   it.each([

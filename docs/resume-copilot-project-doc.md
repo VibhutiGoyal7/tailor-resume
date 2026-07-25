@@ -22,7 +22,7 @@
 | Templates | 3 — Clean/ATS-safe, Modern two-column, Compact/dense (ADR-018) |
 | Screens designed | All 25 (Home + 24), full visual design, dusty-denim system |
 | Build brief | Exists — `tailor-build-brief.md` |
-| Build progress | **Milestone 2 (auth) in progress.** M1 scaffold complete. M2 slice 1 (email/password signup, login, refresh rotation + reuse-detection, logout, protected middleware, argon2, rate limiting) and slice 2 (email verification, forgot/reset password, account read/change-password/delete — all via a new `VerificationToken` table + Resend/dev email abstraction + pino backend logging) done. `auth` is a dedicated module (`packages/modules/auth`). Remaining (slice 2b): Google sign-in (firebase-admin). Lint/format/test green (99 tests; DB integration tests run in CI + via `RUN_DB_TESTS=1`). |
+| Build progress | **Milestone 3 (Profile) in progress.** M1 scaffold + M2 auth (email/password + email verify + password reset + account mgmt; Google sign-in deferred to slice 2b, 2026-07-25) merged to `dev`. M3 so far (branch `feature/profile-module`): Experience Bank structured-item CRUD, manual bullets + accept/edit/reject, Resume Basics GET/PUT — `ExperienceBullet.embedding` made nullable (embeddings land M5). LLM freeform extraction (`/extract`) deferred to M4 (batched with parseJD). Lint/format/test green (105 tests; DB integration via `RUN_DB_TESTS=1`). |
 | Repo tooling | npm workspaces · TypeScript · Vitest · ESLint 9 (flat) + Prettier · tsx (worker dev) — see Section 5 |
 | Deploy status | Not live; not deploying imminently (owner's explicit call, Session 4) |
 

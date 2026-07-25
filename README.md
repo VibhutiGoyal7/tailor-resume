@@ -81,6 +81,23 @@ sent — the link is logged to the server output (look for `[dev-email]`). Set
 
 _Remaining (slice 2b): Google sign-in._
 
+## Experience Bank & Resume Basics (Milestone 3)
+
+Profile module — structured bank items, manual bullets, and resume basics (all Bearer-authed):
+
+| Method + path                      | Body                                                | Result                                |
+| ---------------------------------- | --------------------------------------------------- | ------------------------------------- |
+| `GET /api/bank`                    | — (Bearer)                                          | `200` items grouped by type + bullets |
+| `POST /api/bank/items`             | `{ type, structuredFields?, rawInput? }`            | `201` item                            |
+| `POST /api/bank/items/:id/bullets` | `{ text, tags?, impactMetric? }`                    | `201` bullet (status `accepted`)      |
+| `PATCH /api/bank/bullets/:id`      | `{ status, text? }`                                 | `200` bullet (accept/edit/reject)     |
+| `GET /api/bank/basics`             | — (Bearer)                                          | `200` basics or `null`                |
+| `PUT /api/bank/basics`             | `{ fullName, phone?, location?, links?, summary? }` | `200` basics                          |
+
+Items/bullets are scoped to the authenticated user — touching another user's
+item or bullet returns `404`. _Deferred to M4: `POST /api/bank/items/:id/extract`
+(LLM freeform → suggested bullets). Bullet embeddings (Voyage) land in M5._
+
 ## Quality gates (run before pushing)
 
 ```bash

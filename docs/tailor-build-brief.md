@@ -94,10 +94,13 @@ export const authModule = {
 
 // packages/modules/profile/index.ts
 export const profileModule = {
-  getExperienceBank(userId) { ... },
-  addExperienceItem(userId, input) { ... },
+  getExperienceBank(userId) { ... },                 // items grouped by type, with bullets
+  addExperienceItem(userId, input) { ... },          // structured item (source "structured_form")
+  addBullet(userId, itemId, input) { ... },          // manual bullet (status "accepted"); M3
+  updateBullet(userId, bulletId, input) { ... },     // accept/edit/reject (PATCH /bank/bullets/:id)
   getResumeBasics(userId) { ... },
-  updateResumeBasics(userId, input) { ... },
+  updateResumeBasics(userId, input) { ... },         // upsert (PUT semantics)
+  // M4: extractBullets(userId, itemId) — LLM (Haiku) freeform extraction
 };
 
 // packages/modules/resume-engine/index.ts
@@ -209,6 +212,8 @@ model RefreshToken {
 
 Note: `TailoringJob` isn't in the original project doc's Section 6 table but is required to make ADR-015 (stage-level polling) and ADR-017 (two-phase confirm) actually implementable — it's the row `GET /resumes/jobs/:jobId` reads.
 
+Note (Milestone 3): `ExperienceBullet.embedding` is now **nullable** (`vector(1024)?`). Bullets are created in Milestone 3, but embeddings (Voyage) are computed in Milestone 5 — so a bullet exists before it's embedded. The original schema had it non-null, which the build order can't satisfy; nullable reconciles it.
+
 Note (Milestone 2, slice 2): added `VerificationToken` — single-use tokens for **email verification** and **password reset**, distinguished by a `type` field (`"email_verify" | "password_reset"`). Stored hashed (sha256) with an `expiresAt` and a nullable `usedAt` (single-use). This is the "token stored server-side with expiry" that Section 6 requires; it wasn't enumerated in the original data model.
 
 ```prisma
@@ -248,9 +253,10 @@ Rate limit: 7 attempts on `/login` and `/signup` (ADR-010).
 ```
 GET    /api/bank                        → ExperienceItem[] grouped by type
 POST   /api/bank/items                  { type, structuredFields | rawInput } → ExperienceItem
-POST   /api/bank/items/:id/extract      (for freeform/import) → ExperienceBullet[] (status: "suggested")
+POST   /api/bank/items/:id/bullets      { text, tags?, impactMetric? } → ExperienceBullet (status: "accepted")  # manual add (M3)
+POST   /api/bank/items/:id/extract      (for freeform/import) → ExperienceBullet[] (status: "suggested")        # LLM (M4)
 PATCH  /api/bank/bullets/:id             { status, text? } → ExperienceBullet   (accept/edit/reject)
-GET    /api/bank/basics                  → ResumeBasics
+GET    /api/bank/basics                  → ResumeBasics | null
 PUT    /api/bank/basics                  → ResumeBasics
 ```
 
