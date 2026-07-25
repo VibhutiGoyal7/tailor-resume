@@ -12,7 +12,6 @@ export type { TokenPair, EmailSender } from './auth/index.js';
 export { logger } from './logger.js';
 export type { Logger } from './logger.js';
 export { profileModule } from './profile/index.js';
-export type { AddExperienceItemInput, UpdateResumeBasicsInput } from './profile/index.js';
 export { resumeEngine } from './resume-engine/index.js';
 export type { UpdateResumeLayoutInput } from './resume-engine/index.js';
 export { isActive, isTerminal, nextStage } from './resume-engine/stage.js';
