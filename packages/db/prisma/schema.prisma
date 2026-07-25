@@ -43,7 +43,9 @@ model ExperienceBullet {
   tags             String[]
   impactMetric     String?
   status           String // "suggested" | "accepted" | "edited" | "rejected"
-  embedding        Unsupported("vector(1024)") // pgvector, dims per voyage-4 model
+  // Nullable: bullets are created in Milestone 3 but embeddings (Voyage) are
+  // computed in Milestone 5, so a bullet exists before it is embedded.
+  embedding        Unsupported("vector(1024)")? // pgvector, dims per voyage-4 model
   experienceItem   ExperienceItem               @relation(fields: [experienceItemId], references: [id])
 
   @@index([experienceItemId])
