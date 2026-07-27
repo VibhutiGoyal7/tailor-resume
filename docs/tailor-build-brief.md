@@ -10,7 +10,10 @@
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Mobile app | **React Native** (Expo recommended for faster iteration + `expo-secure-store` for token storage) | Flutter dropped from consideration |
+| Mobile app | **React Native** (Expo SDK 52, RN 0.76 + `expo-secure-store` for token storage) | Flutter dropped from consideration |
+| Mobile navigation | **React Navigation 7** (`native-stack` + `bottom-tabs`) | Milestone 8 — chosen over Expo Router for explicit control of the "auth stack outside the tabs" structure |
+| Mobile server state | **TanStack Query 5** (`@tanstack/react-query`) | Milestone 8 — handles the polling-heavy tailoring flow (ADR-015 job status), caching, retries |
+| Mobile SVG | `react-native-svg` | Milestone 8 — for the illustration motifs + reanimated building-blocks progress motif |
 | Backend API | **Next.js** (App Router, API routes only — no frontend pages needed) | Deployed as a standard Node server, **not** Vercel serverless functions (see worker note below) |
 | Worker process | **Plain Node script** (`worker/index.ts`), same repo, same Prisma client, separate deployable | Next.js API routes are request/response; the async pipeline (ADR-009) needs a long-running process pulling from a queue. This is a second service, not a Next.js route. |
 | Queue | Redis + **BullMQ** | Standard Node pairing, matches ADR-001/009 |
