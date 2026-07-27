@@ -23,6 +23,7 @@ import {
   type ResumeExportFile,
   type RetrievedCandidateView,
   type StoredExportFiles,
+  type TailoredResumeSummary,
   type TailoredResumeView,
   type TemplateId,
 } from '@tailor/shared-types';
@@ -407,6 +408,70 @@ export const resumeEngine = {
       throw err;
     }
   },
+  /**
+   * Resume history list (GET /api/resumes, build brief §5), newest first and
+   * user-scoped. Returns lightweight summaries (role/company + ready formats),
+   * not full detail — the mobile history screen renders one card per row.
+   */
+  async listResumes(userId: string): Promise<TailoredResumeSummary[]> {
+    const rows = await prisma.tailoredResume.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, templateId: true, jdParsed: true, exportFiles: true, createdAt: true },
+    });
+    return rows.map((r) => {
+      const jd = r.jdParsed as unknown as JdParsed;
+      const exportFiles = (r.exportFiles as StoredExportFiles | null) ?? {};
+      return {
+        id: r.id,
+        templateId: r.templateId as TemplateId,
+        roleType: jd.role_type,
+        companyType: jd.company_type,
+        seniority: jd.seniority,
+        availableFormats: EXPORT_FORMATS.filter((f) => exportFiles[f]),
+        createdAt: r.createdAt.toISOString(),
+      };
+    });
+  },
+
+  /**
+   * Delete a tailored resume (DELETE /api/resumes/:id, build brief §5). User-scoped
+   * (404 for a missing or others' resume). Cleans up in three parts: the stored
+   * export files (via the FileStore — best-effort, a missing file never blocks the
+   * delete), then the linked TailoringJob and the resume row in one transaction.
+   */
+  async deleteResume(userId: string, resumeId: string): Promise<void> {
+    const resume = await prisma.tailoredResume.findFirst({
+      where: { id: resumeId, userId },
+      select: { id: true, exportFiles: true },
+    });
+    if (!resume) throw new AppError('NOT_FOUND', `Resume ${resumeId} not found.`);
+
+    const exportFiles = (resume.exportFiles as StoredExportFiles | null) ?? {};
+    const store = getFileStore();
+    for (const format of EXPORT_FORMATS) {
+      const file = exportFiles[format];
+      if (!file) continue;
+      try {
+        await store.delete(file.key);
+      } catch (err) {
+        // A stuck file shouldn't strand the user with an undeletable resume row.
+        logger.warn(
+          { resumeId, key: file.key, err: (err as Error).message },
+          'failed to delete export file during resume delete; continuing',
+        );
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // The linked job references this resume (no DB-level FK — loose userId/id
+      // references per the schema), so clear it in the same transaction.
+      await tx.tailoringJob.deleteMany({ where: { tailoredResumeId: resumeId, userId } });
+      await tx.tailoredResume.delete({ where: { id: resumeId } });
+    });
+    logger.info({ resumeId, userId }, 'resume deleted (exports + linked job cleaned up)');
+  },
+
   /**
    * Resume detail (build brief §5). User-scoped (404 for a missing or others'
    * resume, so ids aren't enumerable). `availableFormats` lists which exports have

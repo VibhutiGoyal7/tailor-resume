@@ -12,10 +12,10 @@ import {
   StubEmbedder,
   StubResumeGenerator,
 } from '@tailor/modules';
-import { POST as postResume } from './route';
+import { POST as postResume, GET as listResumes } from './route';
 import { GET as getJob } from './jobs/[jobId]/route';
 import { POST as confirmJob } from './jobs/[jobId]/confirm/route';
-import { GET as getResumeDetail } from './[id]/route';
+import { GET as getResumeDetail, DELETE as deleteResume } from './[id]/route';
 import { GET as exportResume } from './[id]/export/route';
 import { POST as signup } from '../auth/signup/route';
 import { POST as login } from '../auth/login/route';
@@ -48,6 +48,8 @@ describe('resume routes — auth required (no DB)', () => {
       (await exportResume(getReq('http://localhost/api/resumes/r-1/export?format=pdf'), idp('r-1')))
         .status,
     ).toBe(401);
+    expect((await listResumes(req('GET'))).status).toBe(401);
+    expect((await deleteResume(req('DELETE'), idp('r-1'))).status).toBe(401);
   });
 });
 
@@ -92,6 +94,7 @@ describe.skipIf(!runDb)('resume routes — parse flow (DB)', () => {
     setFileStore({
       put: async (k, b) => void store.set(k, b),
       get: async (k) => store.get(k) ?? null,
+      delete: async (k) => void store.delete(k),
     });
     await signup(req('POST', { email, password }));
     const res = await login(req('POST', { email, password }));
@@ -171,5 +174,42 @@ describe.skipIf(!runDb)('resume routes — parse flow (DB)', () => {
       ).status,
     ).toBe(400);
     expect((await getResumeDetail(req('GET', undefined, token), idp('nope'))).status).toBe(404);
+  });
+
+  it('GET /resumes lists history; DELETE /resumes/:id removes it and 404s afterward', async () => {
+    const { resumeEngine } = await import('@tailor/modules');
+
+    const post = await postResume(req('POST', { jdText: 'Senior TS role at a startup' }, token));
+    const { jobId } = (await post.json()) as { jobId: string };
+    await resumeEngine.runParseStage(jobId, 'Senior TS role at a startup');
+    await resumeEngine.runRetrieveStage(jobId);
+    const status = (await (await getJob(req('GET', undefined, token), jp(jobId))).json()) as {
+      retrievedCandidates: { bulletId: string }[] | null;
+    };
+    const keep = (status.retrievedCandidates ?? []).map((c) => c.bulletId);
+    await confirmJob(req('POST', { keptCandidateIds: keep }, token), jp(jobId));
+    await resumeEngine.runGenerateStage(jobId, keep);
+    const job = await prisma.tailoringJob.findUnique({ where: { id: jobId } });
+    const resumeId = job!.tailoredResumeId!;
+
+    // History lists the resume with its ready formats.
+    const listRes = await listResumes(req('GET', undefined, token));
+    expect(listRes.status).toBe(200);
+    const list = (await listRes.json()) as { id: string; availableFormats: string[] }[];
+    const row = list.find((r) => r.id === resumeId);
+    expect(row).toBeTruthy();
+    expect(row!.availableFormats.sort()).toEqual(['docx', 'pdf']);
+
+    // Delete → 204, then detail 404s and it's gone from history.
+    const del = await deleteResume(req('DELETE', undefined, token), idp(resumeId));
+    expect(del.status).toBe(204);
+    expect((await getResumeDetail(req('GET', undefined, token), idp(resumeId))).status).toBe(404);
+    const after = (await (await listResumes(req('GET', undefined, token))).json()) as {
+      id: string;
+    }[];
+    expect(after.some((r) => r.id === resumeId)).toBe(false);
+
+    // Deleting again (now missing) → 404.
+    expect((await deleteResume(req('DELETE', undefined, token), idp(resumeId))).status).toBe(404);
   });
 });

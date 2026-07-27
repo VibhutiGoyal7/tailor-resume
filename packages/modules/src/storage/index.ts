@@ -20,6 +20,8 @@ export interface FileStore {
   put(key: string, bytes: Buffer, contentType: string): Promise<void>;
   /** Fetch the bytes at `key`, or null if absent. */
   get(key: string): Promise<Buffer | null>;
+  /** Remove the object at `key`. A no-op if it's already absent (idempotent). */
+  delete(key: string): Promise<void>;
 }
 
 /** Reject keys that could escape the store root (keys are app-generated; belt-and-braces). */
@@ -63,6 +65,18 @@ export class LocalFileStore implements FileStore {
       return await fs.readFile(this.resolve(key));
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw err;
+    }
+  }
+
+  async delete(key: string): Promise<void> {
+    const fs = this.require('node:fs/promises') as typeof import('node:fs/promises');
+    try {
+      await fs.unlink(this.resolve(key));
+      logger.info({ key }, 'LocalFileStore: deleted export file');
+    } catch (err) {
+      // Idempotent: a missing file is a successful delete.
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return;
       throw err;
     }
   }
@@ -128,6 +142,15 @@ export class R2FileStore implements FileStore {
       if (err instanceof S3ServiceException && err.name === 'NoSuchKey') return null;
       throw err;
     }
+  }
+
+  async delete(key: string): Promise<void> {
+    assertSafeKey(key);
+    const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+    const client = await this.getClient();
+    // S3/R2 DeleteObject is already idempotent — succeeds whether or not the key exists.
+    await client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+    logger.info({ key }, 'R2FileStore: deleted export file');
   }
 }
 

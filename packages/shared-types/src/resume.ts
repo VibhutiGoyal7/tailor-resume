@@ -142,6 +142,24 @@ export interface ResumeExportFile {
 /** `TailoredResume.exportFiles` — the rendered files, keyed by format. */
 export type StoredExportFiles = Partial<Record<ExportFormat, ResumeExportFile>>;
 
+/**
+ * One row in the resume history list (GET /api/resumes, build brief §5). Kept
+ * lighter than the detail view — the list card shows the target role/company
+ * and which downloads are ready, not the full parsed JD or rendered content.
+ */
+export interface TailoredResumeSummary {
+  id: string;
+  templateId: TemplateId;
+  /** Target role from the parsed JD — the history card's title line. */
+  roleType: string;
+  /** Company type from the parsed JD — the history card's subtitle. */
+  companyType: string;
+  seniority: string;
+  /** Which export formats are ready to download. */
+  availableFormats: ExportFormat[];
+  createdAt: string;
+}
+
 /** GET /api/resumes/:id — resume detail (per-bullet source trace, build brief §5). */
 export interface TailoredResumeView {
   id: string;

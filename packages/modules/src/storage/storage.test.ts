@@ -22,6 +22,15 @@ describe('LocalFileStore', () => {
     expect(await new LocalFileStore(dir).get('resumes/nope/resume.pdf')).toBeNull();
   });
 
+  it('delete removes a stored file and is idempotent for a missing key', async () => {
+    const store = new LocalFileStore(dir);
+    await store.put('resumes/del/resume.pdf', Buffer.from('x'), 'application/pdf');
+    await store.delete('resumes/del/resume.pdf');
+    expect(await store.get('resumes/del/resume.pdf')).toBeNull();
+    // Deleting again (now absent) must not throw.
+    await expect(store.delete('resumes/del/resume.pdf')).resolves.toBeUndefined();
+  });
+
   it('rejects unsafe keys (traversal / absolute)', async () => {
     const store = new LocalFileStore(dir);
     await expect(store.put('../escape', Buffer.from('x'), 'text/plain')).rejects.toThrow();

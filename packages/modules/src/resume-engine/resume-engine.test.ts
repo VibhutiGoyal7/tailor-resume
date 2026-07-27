@@ -25,6 +25,7 @@ function memFileStore(): FileStore & { map: Map<string, Buffer> } {
     map,
     put: async (key, bytes) => void map.set(key, bytes),
     get: async (key) => map.get(key) ?? null,
+    delete: async (key) => void map.delete(key),
   };
 }
 
@@ -339,5 +340,69 @@ describe.skipIf(!runDb)('resumeEngine parse + retrieve (DB)', () => {
     await expect(resumeEngine.getJobStatus('someone-else', jobId)).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
+  });
+
+  /** Drive one JD all the way to a `done` resume; returns its resumeId. */
+  async function driveToDone(): Promise<string> {
+    const { jobId } = await resumeEngine.requestTailoredResume(userId, 'jd');
+    await resumeEngine.runParseStage(jobId, 'jd');
+    await resumeEngine.runRetrieveStage(jobId);
+    const { retrievedCandidates } = await resumeEngine.getJobStatus(userId, jobId);
+    const keep = retrievedCandidates!.map((c) => c.bulletId);
+    await resumeEngine.confirmRetrievedMatches(userId, jobId, keep);
+    await resumeEngine.runGenerateStage(jobId, keep);
+    const job = await prisma.tailoringJob.findUnique({ where: { id: jobId } });
+    return job!.tailoredResumeId!;
+  }
+
+  it('listResumes returns the user’s resumes newest-first with ready formats', async () => {
+    const store = memFileStore();
+    setFileStore(store);
+    const firstId = await driveToDone();
+    const secondId = await driveToDone();
+
+    const list = await resumeEngine.listResumes(userId);
+    const ids = list.map((r) => r.id);
+    // Both appear, newest first.
+    expect(ids.indexOf(secondId)).toBeLessThan(ids.indexOf(firstId));
+    const row = list.find((r) => r.id === secondId)!;
+    expect(row.roleType).toBe(PARSED.role_type);
+    expect(row.companyType).toBe(PARSED.company_type);
+    expect(row.availableFormats.sort()).toEqual(['docx', 'pdf']);
+  });
+
+  it('listResumes is user-scoped (empty for a stranger)', async () => {
+    await driveToDone();
+    expect(await resumeEngine.listResumes('someone-else')).toEqual([]);
+  });
+
+  it('deleteResume removes the resume, its export files, and the linked job', async () => {
+    const store = memFileStore();
+    setFileStore(store);
+    const resumeId = await driveToDone();
+    expect(store.map.size).toBeGreaterThan(0);
+
+    await resumeEngine.deleteResume(userId, resumeId);
+
+    // Resume gone, its stored files gone, no orphaned job left pointing at it.
+    expect(await prisma.tailoredResume.findUnique({ where: { id: resumeId } })).toBeNull();
+    expect(store.map.size).toBe(0);
+    expect(
+      await prisma.tailoringJob.findFirst({ where: { tailoredResumeId: resumeId } }),
+    ).toBeNull();
+    // No longer in the history list.
+    expect((await resumeEngine.listResumes(userId)).some((r) => r.id === resumeId)).toBe(false);
+  });
+
+  it('deleteResume 404s for a missing or another user’s resume', async () => {
+    const resumeId = await driveToDone();
+    await expect(resumeEngine.deleteResume('someone-else', resumeId)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(resumeEngine.deleteResume(userId, 'nope')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    // The real owner can still delete it (was untouched by the failed attempts).
+    await resumeEngine.deleteResume(userId, resumeId);
   });
 });
