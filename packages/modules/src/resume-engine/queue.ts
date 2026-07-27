@@ -6,7 +6,12 @@
 // The real BullMQ/Redis client is behind the Enqueuer interface and lazy-loaded,
 // so unit tests inject an in-memory fake (setEnqueuer) and never need Redis —
 // CLAUDE.md Section 2 (no real infra calls in tests).
-import { QUEUE_NAMES, type ParseJDJob, type RetrieveCandidatesJob } from '@tailor/shared-types';
+import {
+  QUEUE_NAMES,
+  type GenerateResumeJob,
+  type ParseJDJob,
+  type RetrieveCandidatesJob,
+} from '@tailor/shared-types';
 import { logger } from '../logger.js';
 
 export interface Enqueuer {
@@ -14,6 +19,8 @@ export interface Enqueuer {
   enqueueParse(job: ParseJDJob): Promise<void>;
   /** Enqueue the retrieve job (chained after a successful parse, ADR-009). */
   enqueueRetrieve(job: RetrieveCandidatesJob): Promise<void>;
+  /** Enqueue the generate job (only from POST /confirm — ADR-017 two-phase). */
+  enqueueGenerate(job: GenerateResumeJob): Promise<void>;
 }
 
 /**
@@ -57,6 +64,12 @@ export class BullMqEnqueuer implements Enqueuer {
     const queue = await this.getQueue(QUEUE_NAMES.retrieve);
     await queue.add('retrieve', job);
     logger.info({ jobId: job.jobId }, 'enqueued retrieve-candidates job');
+  }
+
+  async enqueueGenerate(job: GenerateResumeJob): Promise<void> {
+    const queue = await this.getQueue(QUEUE_NAMES.generate);
+    await queue.add('generate', job);
+    logger.info({ jobId: job.jobId }, 'enqueued generate-resume job');
   }
 }
 

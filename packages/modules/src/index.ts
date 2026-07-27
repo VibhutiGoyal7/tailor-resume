@@ -20,13 +20,32 @@ export {
   setJdParser,
   StubJdParser,
   AnthropicJdParser,
+  getResumeGenerator,
+  setResumeGenerator,
+  StubResumeGenerator,
+  AnthropicResumeGenerator,
+  RESUME_GEN_MODEL,
+  getResumeRenderer,
+  setResumeRenderer,
+  NoopResumeRenderer,
   getEnqueuer,
   setEnqueuer,
   BullMqEnqueuer,
   buildRetrievalQueries,
   rerankCandidates,
 } from './resume-engine/index.js';
-export type { JdParser, Enqueuer } from './resume-engine/index.js';
+export type {
+  JdParser,
+  Enqueuer,
+  ResumeGenerator,
+  GenerationInput,
+  GenerationCandidate,
+  ResumeRenderer,
+  RenderInput,
+  RenderBasics,
+} from './resume-engine/index.js';
+export { getFileStore, setFileStore, LocalFileStore, R2FileStore } from './storage/index.js';
+export type { FileStore } from './storage/index.js';
 export {
   getEmbedder,
   setEmbedder,

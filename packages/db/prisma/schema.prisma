@@ -78,6 +78,10 @@ model TailoredResume {
   // "Here's what we found" list without recomputing scores. Array of RetrievedCandidateView.
   retrievedCandidates   Json?
   renderedContent       Json?
+  // Stored rendered export files (worker renders PDF+DOCX at generate time and
+  // uploads via the FileStore; served by GET /resumes/:id/export). Shape:
+  // { pdf: { key, contentType, filename }, docx: {...} }. See StoredExportFiles.
+  exportFiles           Json?
   version               Int      @default(1)
   createdAt             DateTime @default(now())
 

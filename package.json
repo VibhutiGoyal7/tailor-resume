@@ -36,5 +36,12 @@
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0",
     "vitest": "^2.1.8"
+  },
+  "comments": {
+    "overrides": "Pin a single React 18.3.1 repo-wide. @react-pdf/renderer 4.x (worker PDF rendering, ADR-012) needs React 18; its reconciler throws React error #31 on React 19 elements. The web app is API-routes-only (no React rendering), so its React version is cosmetic, and React Native 0.76 (mobile) already uses 18.3.1. Without this, Next 15.5 / @react-email/render drag in React 19 and npm dedupes it into the worker, breaking PDF rendering."
+  },
+  "overrides": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
   }
 }

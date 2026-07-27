@@ -10,6 +10,7 @@ describe('enqueuer injection', () => {
         enqueued.push(job);
       },
       enqueueRetrieve: async () => {},
+      enqueueGenerate: async () => {},
     };
     setEnqueuer(fake);
     expect(getEnqueuer()).toBe(fake);

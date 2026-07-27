@@ -8,6 +8,7 @@ import { QUEUE_NAMES } from './queues.js';
 import { parseJD } from './tasks/parseJD.js';
 import { retrieveCandidates } from './tasks/retrieveCandidates.js';
 import { generateResume } from './tasks/generateResume.js';
+import { registerWorkerRenderer } from './render/index.js';
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -16,6 +17,10 @@ function requireEnv(name: string): string {
 }
 
 export function startWorker(): Worker[] {
+  // Register the PDF/DOCX renderer so the generate stage can produce export files
+  // (ADR-012). Worker-only — the web deployable never calls this (CLAUDE.md §7).
+  registerWorkerRenderer();
+
   const connection = new Redis(requireEnv('REDIS_URL'), {
     maxRetriesPerRequest: null, // required by BullMQ
   });
