@@ -1,23 +1,11 @@
-// Queue definitions for the tailoring pipeline (build brief Section 7, ADR-009).
-// Three named queues — one per stage — so concurrency limits and monitoring can
-// be tuned per stage (the LLM calls in parse/generate are the expensive ones).
-export const QUEUE_NAMES = {
-  parse: 'parse-jd',
-  retrieve: 'retrieve-candidates',
-  generate: 'generate-resume',
-} as const;
-
-export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
-
-/** Job payloads carried on each queue. `jobId` == TailoringJob.id throughout. */
-export interface ParseJDJob {
-  jobId: string;
-  jdText: string;
-}
-export interface RetrieveCandidatesJob {
-  jobId: string;
-}
-export interface GenerateResumeJob {
-  jobId: string;
-  keptCandidateIds: string[];
-}
+// Queue names + job payloads for the tailoring pipeline (build brief Section 7,
+// ADR-009). These are the single source of truth in shared-types so the producer
+// (resume-engine module) and this consumer (the worker) can never drift apart —
+// re-exported here for the worker's local imports.
+export { QUEUE_NAMES } from '@tailor/shared-types';
+export type {
+  QueueName,
+  ParseJDJob,
+  RetrieveCandidatesJob,
+  GenerateResumeJob,
+} from '@tailor/shared-types';

@@ -3,16 +3,15 @@
 // than silently returning undefined. Real behavior tests replace these per method
 // as each is implemented.
 //
-// profileModule is implemented (Milestone 3) — its behavior is covered by
-// profile/profile.test.ts. Only resume-engine remains a stub here.
+// profileModule (Milestone 3) and resume-engine's parse stage (Milestone 4) are
+// implemented — covered by profile/profile.test.ts and resume-engine/*.test.ts.
+// Only the still-unbuilt resume-engine methods (Milestones 5–7) remain stubs here.
 import { describe, expect, it } from 'vitest';
 import { NotImplementedError } from './common.js';
 import { resumeEngine } from './resume-engine/index.js';
 
-describe('resumeEngine facade', () => {
+describe('resumeEngine facade — unbuilt stages still stubbed', () => {
   it.each([
-    ['requestTailoredResume', () => resumeEngine.requestTailoredResume('u1', 'jd text')],
-    ['getJobStatus', () => resumeEngine.getJobStatus('job1')],
     ['confirmRetrievedMatches', () => resumeEngine.confirmRetrievedMatches('job1', ['c1'])],
     ['getResume', () => resumeEngine.getResume('r1')],
     [

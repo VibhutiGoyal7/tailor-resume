@@ -360,6 +360,15 @@ Three BullMQ queues (or one queue, three job names — either works, but separat
 
 Retry (ADR-015): `POST /resumes/jobs/:jobId/retry` re-enqueues only whichever task matches `failedStage` — reusing the same input the failed attempt had, not restarting from `parseJD`.
 
+### Implementation status — Milestone 4 (parse stage, built this session)
+
+The **parse** stage is implemented end-to-end; retrieve/generate remain scaffolds.
+
+- **Where the logic lives.** All parse logic is in the `resume-engine` facade (`runParseStage`), not the worker. The worker's `parseJD` task is a one-liner that calls the facade (CLAUDE.md §1: business logic in the module, worker tasks thin). The facade also owns `requestTailoredResume` (create `TailoringJob` @ `parsing` + enqueue) and `getJobStatus` (user-scoped poll).
+- **Queue producer.** `resume-engine` is the producer, behind an injectable `Enqueuer` interface (`BullMqEnqueuer` in prod; an in-memory fake in tests). `QUEUE_NAMES` + job payloads live once in `shared-types`; both the producer and `apps/worker` import them (worker's `queues.ts` re-exports them) so names can't drift.
+- **JD parser is behind `JdParser`** with two implementations: `AnthropicJdParser` (Claude Haiku, structured output, per ADR-004) and **`StubJdParser`** (a fixed canned parse). `getJdParser()` **auto-selects**: `AnthropicJdParser` when `ANTHROPIC_API_KEY` is set, otherwise `StubJdParser`. This lets the whole pipeline run and be demoed with **no API key**; adding the key later switches to the real model with zero code change. Canned output lives in one constant (`STUB_JD_PARSED`) — edit it to change the demo data.
+- **Deferred within M4 (intentional):** `runParseStage` persists `jd_parsed` and advances the job to `retrieving`, but does **not** yet enqueue `retrieveCandidates` — that wiring lands in Milestone 5 alongside the retrieve task, so an M4 job cleanly reaches `retrieving` with its parse visible and no failing downstream job. `TailoredResume.templateId` is set to a placeholder `"classic"` until template selection is designed (§10 open items).
+
 ---
 
 ## 8. Design tokens for React Native (locked palette, this session)
