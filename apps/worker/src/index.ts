@@ -8,6 +8,7 @@ import { QUEUE_NAMES } from './queues.js';
 import { parseJD } from './tasks/parseJD.js';
 import { retrieveCandidates } from './tasks/retrieveCandidates.js';
 import { generateResume } from './tasks/generateResume.js';
+import { renderResume } from './tasks/renderResume.js';
 import { registerWorkerRenderer } from './render/index.js';
 
 function requireEnv(name: string): string {
@@ -29,6 +30,7 @@ export function startWorker(): Worker[] {
     { name: QUEUE_NAMES.parse, processor: (job) => parseJD(job.data) },
     { name: QUEUE_NAMES.retrieve, processor: (job) => retrieveCandidates(job.data) },
     { name: QUEUE_NAMES.generate, processor: (job) => generateResume(job.data) },
+    { name: QUEUE_NAMES.render, processor: (job) => renderResume(job.data) },
   ];
 
   const workers = stages.map(

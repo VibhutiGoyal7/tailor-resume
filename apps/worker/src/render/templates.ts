@@ -3,7 +3,7 @@
 // formats of a given template stay visually consistent. Colors are Tailor's locked
 // design tokens (build brief §8) — the backend has no shared token module, so they
 // are mirrored here with that citation rather than picked ad hoc.
-import type { TemplateId } from '@tailor/shared-types';
+import type { ResumeSection, TemplateId } from '@tailor/shared-types';
 
 /** Design tokens (build brief §8 — dusty denim blue system). */
 export const TOKENS = {
@@ -58,6 +58,24 @@ export const TEMPLATE_CONFIG: Record<TemplateId, TemplateConfig> = {
     pagePt: 30,
   },
 };
+
+/**
+ * The visible body sections in display order (Milestone 7 layout customization):
+ * the resolved section order with hidden sections removed. Both renderers walk
+ * this list so PDF and DOCX honor reorder/hide identically.
+ */
+export function visibleSections(
+  sectionOrder: ResumeSection[],
+  hidden: ResumeSection[],
+): ResumeSection[] {
+  const hide = new Set(hidden);
+  return sectionOrder.filter((s) => !hide.has(s));
+}
+
+/** Whether the two-column sidebar sits on the right (the `modern-right` variant). */
+export function sidebarOnRight(layoutVariantId: string): boolean {
+  return layoutVariantId === 'modern-right';
+}
 
 /** Assemble a one-line contact string from the basics (drops empty parts). */
 export function contactLine(basics: {

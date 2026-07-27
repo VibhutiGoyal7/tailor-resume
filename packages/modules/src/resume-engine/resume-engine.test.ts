@@ -7,6 +7,7 @@ import type {
   GenerateResumeJob,
   JdParsed,
   ParseJDJob,
+  RenderResumeJob,
   RetrieveCandidatesJob,
 } from '@tailor/shared-types';
 import { profileModule } from '../profile/index.js';
@@ -25,6 +26,7 @@ function memFileStore(): FileStore & { map: Map<string, Buffer> } {
     map,
     put: async (key, bytes) => void map.set(key, bytes),
     get: async (key) => map.get(key) ?? null,
+    delete: async (key) => void map.delete(key),
   };
 }
 
@@ -53,11 +55,13 @@ function fakeEnqueuer(sink?: {
   parse?: ParseJDJob[];
   retrieve?: RetrieveCandidatesJob[];
   generate?: GenerateResumeJob[];
+  render?: RenderResumeJob[];
 }): Enqueuer {
   return {
     enqueueParse: async (job) => void sink?.parse?.push(job),
     enqueueRetrieve: async (job) => void sink?.retrieve?.push(job),
     enqueueGenerate: async (job) => void sink?.generate?.push(job),
+    enqueueRender: async (job) => void sink?.render?.push(job),
   };
 }
 
@@ -339,5 +343,145 @@ describe.skipIf(!runDb)('resumeEngine parse + retrieve (DB)', () => {
     await expect(resumeEngine.getJobStatus('someone-else', jobId)).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
+  });
+
+  /** Drive one JD all the way to a `done` resume; returns its resumeId. */
+  async function driveToDone(): Promise<string> {
+    const { jobId } = await resumeEngine.requestTailoredResume(userId, 'jd');
+    await resumeEngine.runParseStage(jobId, 'jd');
+    await resumeEngine.runRetrieveStage(jobId);
+    const { retrievedCandidates } = await resumeEngine.getJobStatus(userId, jobId);
+    const keep = retrievedCandidates!.map((c) => c.bulletId);
+    await resumeEngine.confirmRetrievedMatches(userId, jobId, keep);
+    await resumeEngine.runGenerateStage(jobId, keep);
+    const job = await prisma.tailoringJob.findUnique({ where: { id: jobId } });
+    return job!.tailoredResumeId!;
+  }
+
+  it('listResumes returns the user’s resumes newest-first with ready formats', async () => {
+    const store = memFileStore();
+    setFileStore(store);
+    const firstId = await driveToDone();
+    const secondId = await driveToDone();
+
+    const list = await resumeEngine.listResumes(userId);
+    const ids = list.map((r) => r.id);
+    // Both appear, newest first.
+    expect(ids.indexOf(secondId)).toBeLessThan(ids.indexOf(firstId));
+    const row = list.find((r) => r.id === secondId)!;
+    expect(row.roleType).toBe(PARSED.role_type);
+    expect(row.companyType).toBe(PARSED.company_type);
+    expect(row.availableFormats.sort()).toEqual(['docx', 'pdf']);
+  });
+
+  it('listResumes is user-scoped (empty for a stranger)', async () => {
+    await driveToDone();
+    expect(await resumeEngine.listResumes('someone-else')).toEqual([]);
+  });
+
+  it('deleteResume removes the resume, its export files, and the linked job', async () => {
+    const store = memFileStore();
+    setFileStore(store);
+    const resumeId = await driveToDone();
+    expect(store.map.size).toBeGreaterThan(0);
+
+    await resumeEngine.deleteResume(userId, resumeId);
+
+    // Resume gone, its stored files gone, no orphaned job left pointing at it.
+    expect(await prisma.tailoredResume.findUnique({ where: { id: resumeId } })).toBeNull();
+    expect(store.map.size).toBe(0);
+    expect(
+      await prisma.tailoringJob.findFirst({ where: { tailoredResumeId: resumeId } }),
+    ).toBeNull();
+    // No longer in the history list.
+    expect((await resumeEngine.listResumes(userId)).some((r) => r.id === resumeId)).toBe(false);
+  });
+
+  it('deleteResume 404s for a missing or another user’s resume', async () => {
+    const resumeId = await driveToDone();
+    await expect(resumeEngine.deleteResume('someone-else', resumeId)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(resumeEngine.deleteResume(userId, 'nope')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    // The real owner can still delete it (was untouched by the failed attempts).
+    await resumeEngine.deleteResume(userId, resumeId);
+  });
+
+  it('updateResumeLayout persists layout, syncs template, and enqueues a re-render', async () => {
+    const sink = { render: [] as RenderResumeJob[] };
+    setEnqueuer(fakeEnqueuer(sink));
+    const resumeId = await driveToDone();
+
+    const view = await resumeEngine.updateResumeLayout(userId, resumeId, {
+      sectionOrder: ['experience', 'summary', 'skills'],
+      hiddenSections: ['skills'],
+      templateId: 'ats',
+    });
+
+    // Returned view reflects the new layout immediately.
+    expect(view.templateId).toBe('ats');
+    expect(view.sectionOrder).toEqual(['experience', 'summary', 'skills']);
+    expect(view.hiddenSections).toEqual(['skills']);
+    // Switching template without a variant resets to that template's default.
+    expect(view.layoutVariantId).toBe('ats-standard');
+    // renderedContent.templateId is kept in sync with the override.
+    expect(view.renderedContent!.templateId).toBe('ats');
+    // A re-render was enqueued (resume-scoped).
+    expect(sink.render).toEqual([{ resumeId }]);
+
+    // Persisted.
+    const row = await prisma.tailoredResume.findUniqueOrThrow({ where: { id: resumeId } });
+    expect(row.templateId).toBe('ats');
+    expect(row.sectionOrder).toEqual(['experience', 'summary', 'skills']);
+    expect(row.hiddenSections).toEqual(['skills']);
+  });
+
+  it('updateResumeLayout rejects a variant that is invalid for the template', async () => {
+    // driveToDone() yields the `modern` template (Scale-up JD); `ats-standard`
+    // is not one of modern's variants.
+    const resumeId = await driveToDone();
+    await expect(
+      resumeEngine.updateResumeLayout(userId, resumeId, { layoutVariantId: 'ats-standard' }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+  });
+
+  it('updateResumeLayout 404s for another user and never enqueues', async () => {
+    const sink = { render: [] as RenderResumeJob[] };
+    setEnqueuer(fakeEnqueuer(sink));
+    const resumeId = await driveToDone();
+    await expect(
+      resumeEngine.updateResumeLayout('someone-else', resumeId, { hiddenSections: ['summary'] }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(sink.render).toEqual([]);
+  });
+
+  it('runRenderStage re-renders the export files in place with the new layout', async () => {
+    const store = memFileStore();
+    setFileStore(store);
+    const renders: RenderInput[] = [];
+    setResumeRenderer(fakeRenderer(renders));
+    const resumeId = await driveToDone();
+    renders.length = 0; // ignore the initial generate-time renders
+
+    // Change layout, then run the worker's render stage.
+    await resumeEngine.updateResumeLayout(userId, resumeId, {
+      templateId: 'modern',
+      layoutVariantId: 'modern-right',
+      hiddenSections: ['summary'],
+    });
+    await resumeEngine.runRenderStage(resumeId);
+
+    // Re-rendered both formats with the new layout.
+    expect(renders.map((r) => r.format).sort()).toEqual(['docx', 'pdf']);
+    expect(renders.every((r) => r.templateId === 'modern')).toBe(true);
+    expect(renders.every((r) => r.layoutVariantId === 'modern-right')).toBe(true);
+    expect(renders.every((r) => r.hiddenSections.includes('summary'))).toBe(true);
+    // Skills came from the persisted renderedContent (no candidates in hand here).
+    expect(renders[0]!.skills).toContain('Kubernetes');
+    // Exports still downloadable (overwritten in place — same keys).
+    const detail = await resumeEngine.getResume(userId, resumeId);
+    expect(detail.availableFormats.sort()).toEqual(['docx', 'pdf']);
   });
 });

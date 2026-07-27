@@ -17,3 +17,13 @@ export async function POST(req: Request): Promise<Response> {
     return errorResponse(err);
   }
 }
+
+// GET /api/resumes -> resume history (newest first), user-scoped by the facade.
+export async function GET(req: Request): Promise<Response> {
+  try {
+    const { userId } = await requireAuth(req);
+    return Response.json(await resumeEngine.listResumes(userId));
+  } catch (err) {
+    return errorResponse(err);
+  }
+}

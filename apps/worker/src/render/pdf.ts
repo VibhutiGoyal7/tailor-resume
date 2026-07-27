@@ -4,7 +4,14 @@
 import { createElement as h } from 'react';
 import { Document, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
 import type { RenderInput } from '@tailor/modules';
-import { contactLine, TEMPLATE_CONFIG, TOKENS } from './templates.js';
+import type { ResumeSection } from '@tailor/shared-types';
+import {
+  contactLine,
+  sidebarOnRight,
+  TEMPLATE_CONFIG,
+  TOKENS,
+  visibleSections,
+} from './templates.js';
 
 /** Build the react-pdf element tree for the given resume + template. */
 function buildDocument(input: RenderInput) {
@@ -76,26 +83,40 @@ function buildDocument(input: RenderInput) {
   const nameEl = h(Text, { style: s.name }, input.basics.fullName || 'Your Name');
   const contactEl = h(Text, { style: s.contact }, contactLine(input.basics));
 
+  // Layout customization (Milestone 7): emit sections in the user's order, drop
+  // hidden ones. A section that's visible but empty (no summary/skills) still drops.
+  const visible = visibleSections(input.sectionOrder, input.hiddenSections);
+  const sectionEl: Record<ResumeSection, ReturnType<typeof h> | null> = {
+    summary: summaryEl,
+    skills: skillsEl,
+    experience: experienceEl,
+  };
+  const inOrder = (sections: ResumeSection[]) =>
+    sections.map((sec) => sectionEl[sec]).filter((el): el is ReturnType<typeof h> => el !== null);
+
   let body;
   if (cfg.layout === 'two-column') {
-    // Sidebar (contact + skills) alongside a main column (name, summary, experience).
+    // Sidebar carries contact + skills; the main column carries name + the other
+    // visible sections in order. `modern-right` flips which side the sidebar is on.
+    const sidebar = h(
+      View,
+      { style: s.sidebar },
+      contactEl,
+      ...(visible.includes('skills') && skillsEl ? [skillsEl] : []),
+    );
+    const main = h(
+      View,
+      { style: s.main },
+      nameEl,
+      ...inOrder(visible.filter((sec) => sec !== 'skills')),
+    );
     body = h(
       View,
       { style: s.row },
-      h(View, { style: s.sidebar }, contactEl, skillsEl),
-      h(View, { style: s.main }, nameEl, summaryEl, experienceEl),
+      ...(sidebarOnRight(input.layoutVariantId) ? [main, sidebar] : [sidebar, main]),
     );
   } else {
-    body = h(
-      View,
-      {},
-      nameEl,
-      contactEl,
-      h(View, { style: s.rule }),
-      summaryEl,
-      experienceEl,
-      skillsEl,
-    );
+    body = h(View, {}, nameEl, contactEl, h(View, { style: s.rule }), ...inOrder(visible));
   }
 
   return h(Document, {}, h(Page, { size: 'A4', style: s.page }, body));

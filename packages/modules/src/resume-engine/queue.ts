@@ -10,6 +10,7 @@ import {
   QUEUE_NAMES,
   type GenerateResumeJob,
   type ParseJDJob,
+  type RenderResumeJob,
   type RetrieveCandidatesJob,
 } from '@tailor/shared-types';
 import { logger } from '../logger.js';
@@ -21,6 +22,8 @@ export interface Enqueuer {
   enqueueRetrieve(job: RetrieveCandidatesJob): Promise<void>;
   /** Enqueue the generate job (only from POST /confirm — ADR-017 two-phase). */
   enqueueGenerate(job: GenerateResumeJob): Promise<void>;
+  /** Enqueue a re-render after a layout change (Milestone 7 — resume-scoped). */
+  enqueueRender(job: RenderResumeJob): Promise<void>;
 }
 
 /**
@@ -70,6 +73,12 @@ export class BullMqEnqueuer implements Enqueuer {
     const queue = await this.getQueue(QUEUE_NAMES.generate);
     await queue.add('generate', job);
     logger.info({ jobId: job.jobId }, 'enqueued generate-resume job');
+  }
+
+  async enqueueRender(job: RenderResumeJob): Promise<void> {
+    const queue = await this.getQueue(QUEUE_NAMES.render);
+    await queue.add('render', job);
+    logger.info({ resumeId: job.resumeId }, 'enqueued render-resume job');
   }
 }
 
