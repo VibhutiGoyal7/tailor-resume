@@ -9,6 +9,7 @@ import { prisma, Prisma, type ExperienceItem, type ExperienceBullet } from '@tai
 import {
   AppError,
   EXPERIENCE_TYPES,
+  type BulletVectorMatch,
   type AddBulletInput,
   type AddExperienceItemInput,
   type BulletView,
@@ -166,6 +167,69 @@ export const profileModule = {
       summary: basics.summary,
       updatedAt: basics.updatedAt.toISOString(),
     };
+  },
+
+  // --- Embeddings & vector search (ADR-003) ---------------------------------
+  // profile owns the ExperienceBullet table, so the pgvector reads/writes live
+  // here (raw SQL — Prisma's typed client can't touch an Unsupported vector
+  // column). resume-engine computes the vectors and consumes these via the
+  // facade, never querying this table itself (ADR-008 boundary). Retrieval only
+  // considers bullets the user kept: status "accepted" or "edited".
+
+  /** Accepted/edited bullets that still need an embedding (lazy backfill, M5). */
+  async getBulletsNeedingEmbedding(userId: string): Promise<Array<{ id: string; text: string }>> {
+    return prisma.$queryRaw<Array<{ id: string; text: string }>>`
+      SELECT b.id, b.text
+      FROM "ExperienceBullet" b
+      JOIN "ExperienceItem" i ON i.id = b."experienceItemId"
+      WHERE i."userId" = ${userId}
+        AND b.status IN ('accepted', 'edited')
+        AND b.embedding IS NULL
+    `;
+  },
+
+  /** Store a bullet's embedding (vector written via raw SQL + ::vector cast). */
+  async setBulletEmbedding(bulletId: string, vector: number[]): Promise<void> {
+    const literal = `[${vector.join(',')}]`;
+    await prisma.$executeRaw`
+      UPDATE "ExperienceBullet" SET embedding = ${literal}::vector WHERE id = ${bulletId}
+    `;
+  },
+
+  /**
+   * Top-k of the user's kept bullets nearest to a query vector, by pgvector
+   * cosine distance (`<=>`). Returns distance so the caller can re-rank/union.
+   */
+  async searchBulletsByVector(
+    userId: string,
+    queryVector: number[],
+    topK: number,
+  ): Promise<BulletVectorMatch[]> {
+    const literal = `[${queryVector.join(',')}]`;
+    const rows = await prisma.$queryRaw<
+      Array<{
+        bulletId: string;
+        experienceItemId: string;
+        text: string;
+        tags: string[];
+        distance: number;
+      }>
+    >`
+      SELECT b.id AS "bulletId",
+             b."experienceItemId" AS "experienceItemId",
+             b.text AS text,
+             b.tags AS tags,
+             (b.embedding <=> ${literal}::vector) AS distance
+      FROM "ExperienceBullet" b
+      JOIN "ExperienceItem" i ON i.id = b."experienceItemId"
+      WHERE i."userId" = ${userId}
+        AND b.status IN ('accepted', 'edited')
+        AND b.embedding IS NOT NULL
+      ORDER BY b.embedding <=> ${literal}::vector
+      LIMIT ${topK}
+    `;
+    // pg returns double precision as string in some drivers; coerce defensively.
+    return rows.map((r) => ({ ...r, distance: Number(r.distance) }));
   },
 };
 

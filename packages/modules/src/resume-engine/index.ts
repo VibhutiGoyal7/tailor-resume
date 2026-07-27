@@ -10,11 +10,20 @@
 //   getJobStatus          -> poll job + parsed result (ADR-015)
 // retrieve/generate/confirm land in Milestones 5–7 (still scaffolded below).
 import { prisma, Prisma } from '@tailor/db';
-import { AppError, type JdParsed, type JobStage, type JobStatusView } from '@tailor/shared-types';
+import {
+  AppError,
+  type JdParsed,
+  type JobStage,
+  type JobStatusView,
+  type RetrievedCandidateView,
+} from '@tailor/shared-types';
 import { logger } from '../logger.js';
 import { NotImplementedError } from '../common.js';
+import { profileModule } from '../profile/index.js';
+import { getEmbedder } from '../embedding/index.js';
 import { getJdParser } from './jd-parser.js';
 import { getEnqueuer } from './queue.js';
+import { buildRetrievalQueries, rerankCandidates, TOP_K_PER_QUERY } from './retrieval.js';
 
 /** Template used until template selection ships (build brief open items). */
 const DEFAULT_TEMPLATE_ID = 'classic';
@@ -43,13 +52,10 @@ export const resumeEngine = {
   /**
    * Run the parse stage for a job (invoked by the worker's parseJD task).
    * Parses the JD via the injectable parser (stub when no ANTHROPIC_API_KEY),
-   * persists jd_parsed onto a TailoredResume linked to the job, and advances the
-   * stage to `retrieving`. On any failure, records `failedStage = "parsing"`
-   * (stage stays `parsing`) and rethrows so BullMQ's retry policy applies.
-   *
-   * Note: enqueuing the *next* stage (retrieve) is intentionally deferred to
-   * Milestone 5, when the retrieve task exists — so an M4 job cleanly reaches
-   * `retrieving` with its parse visible, without a failing downstream job.
+   * persists jd_parsed onto a TailoredResume linked to the job, advances the
+   * stage to `retrieving`, and enqueues the retrieve job (ADR-009 chaining). On
+   * any failure, records `failedStage = "parsing"` (stage stays `parsing`) and
+   * rethrows so BullMQ's retry policy applies.
    */
   async runParseStage(jobId: string, jdText: string): Promise<void> {
     const job = await prisma.tailoringJob.findUnique({ where: { id: jobId } });
@@ -80,12 +86,91 @@ export const resumeEngine = {
       });
 
       logger.info({ jobId }, 'parse stage complete; jd_parsed persisted, stage -> retrieving');
+      await getEnqueuer().enqueueRetrieve({ jobId });
     } catch (err) {
       await prisma.tailoringJob.update({
         where: { id: jobId },
         data: { failedStage: 'parsing' },
       });
       logger.error({ jobId, err: (err as Error).message }, 'parse stage failed');
+      throw err;
+    }
+  },
+
+  /**
+   * Run the retrieve stage (invoked by the worker's retrieveCandidates task).
+   * Lazily embeds any kept bullets missing a vector (M5 decision: embedding runs
+   * in the worker, not the web write path), embeds each JD query string, runs
+   * pgvector cosine search per query via profileModule (ADR-008 — never touches
+   * profile's table directly), unions + hybrid-re-ranks the hits (ADR-003), then
+   * persists the candidate set and stops at `awaiting_confirmation` (ADR-017 —
+   * does NOT auto-enqueue generate; that waits for POST /confirm). On failure:
+   * `failedStage = "retrieving"`, stage unchanged, rethrow.
+   */
+  async runRetrieveStage(jobId: string): Promise<void> {
+    const job = await prisma.tailoringJob.findUnique({ where: { id: jobId } });
+    if (!job) throw new AppError('NOT_FOUND', `Tailoring job ${jobId} not found.`);
+    if (!job.tailoredResumeId) {
+      throw new AppError('CONFLICT', `Job ${jobId} has no parsed resume to retrieve against.`);
+    }
+
+    try {
+      const resume = await prisma.tailoredResume.findUniqueOrThrow({
+        where: { id: job.tailoredResumeId },
+      });
+      const jdParsed = resume.jdParsed as unknown as JdParsed;
+      const embedder = getEmbedder();
+
+      // 1. Lazy embedding backfill for kept bullets that don't have a vector yet.
+      const missing = await profileModule.getBulletsNeedingEmbedding(job.userId);
+      if (missing.length > 0) {
+        const vectors = await embedder.embed(
+          missing.map((b) => b.text),
+          'document',
+        );
+        for (let i = 0; i < missing.length; i++) {
+          await profileModule.setBulletEmbedding(missing[i]!.id, vectors[i]!);
+        }
+        logger.info({ jobId, embedded: missing.length }, 'backfilled bullet embeddings');
+      }
+
+      // 2. Embed each JD query separately, search, union + re-rank (ADR-003/004).
+      const queries = buildRetrievalQueries(jdParsed);
+      const queryVectors = queries.length ? await embedder.embed(queries, 'query') : [];
+      const matches = (
+        await Promise.all(
+          queryVectors.map((qv) =>
+            profileModule.searchBulletsByVector(job.userId, qv, TOP_K_PER_QUERY),
+          ),
+        )
+      ).flat();
+      const candidates = rerankCandidates(matches, jdParsed.required_skills);
+
+      // 3. Persist candidates and stop at the ADR-017 checkpoint.
+      await prisma.$transaction(async (tx) => {
+        await tx.tailoredResume.update({
+          where: { id: resume.id },
+          data: {
+            retrievedCandidateIds: candidates.map((c) => c.bulletId),
+            retrievedCandidates: candidates as unknown as Prisma.InputJsonValue,
+          },
+        });
+        await tx.tailoringJob.update({
+          where: { id: jobId },
+          data: { stage: 'awaiting_confirmation', failedStage: null },
+        });
+      });
+
+      logger.info(
+        { jobId, candidateCount: candidates.length },
+        'retrieve stage complete; stage -> awaiting_confirmation',
+      );
+    } catch (err) {
+      await prisma.tailoringJob.update({
+        where: { id: jobId },
+        data: { failedStage: 'retrieving' },
+      });
+      logger.error({ jobId, err: (err as Error).message }, 'retrieve stage failed');
       throw err;
     }
   },
@@ -100,12 +185,15 @@ export const resumeEngine = {
     if (!job) throw new AppError('NOT_FOUND', `Tailoring job ${jobId} not found.`);
 
     let jdParsed: JdParsed | null = null;
+    let retrievedCandidates: RetrievedCandidateView[] | null = null;
     if (job.tailoredResumeId) {
       const resume = await prisma.tailoredResume.findUnique({
         where: { id: job.tailoredResumeId },
-        select: { jdParsed: true },
+        select: { jdParsed: true, retrievedCandidates: true },
       });
       jdParsed = (resume?.jdParsed as JdParsed | undefined) ?? null;
+      retrievedCandidates =
+        (resume?.retrievedCandidates as RetrievedCandidateView[] | undefined) ?? null;
     }
 
     return {
@@ -113,12 +201,55 @@ export const resumeEngine = {
       stage: job.stage as JobStage,
       failedStage: job.failedStage,
       jdParsed,
+      retrievedCandidates,
     };
   },
 
-  /** Two-phase confirm (ADR-017) — enqueues the "generate" task. (Milestone 6) */
-  confirmRetrievedMatches(_jobId: string, _keptCandidateIds: string[]): Promise<never> {
-    throw new NotImplementedError('resumeEngine.confirmRetrievedMatches');
+  /**
+   * ADR-017 checkpoint confirmation: the user's kept subset of the retrieved
+   * candidates. Validates the kept ids are a subset of what was retrieved and
+   * records them as `selectedBulletIds`. User-scoped (404 for others' jobs) and
+   * only valid while awaiting confirmation.
+   *
+   * Note: enqueuing the *generate* stage is intentionally deferred to Milestone 6
+   * (when the generate task exists) — same clean-boundary pattern parse→retrieve
+   * used. So the job stays at `awaiting_confirmation` with the selection recorded.
+   */
+  async confirmRetrievedMatches(
+    userId: string,
+    jobId: string,
+    keptCandidateIds: string[],
+  ): Promise<void> {
+    const job = await prisma.tailoringJob.findFirst({ where: { id: jobId, userId } });
+    if (!job) throw new AppError('NOT_FOUND', `Tailoring job ${jobId} not found.`);
+    if (job.stage !== 'awaiting_confirmation') {
+      throw new AppError(
+        'CONFLICT',
+        `Job ${jobId} is not awaiting confirmation (stage: ${job.stage}).`,
+      );
+    }
+    if (!job.tailoredResumeId) {
+      throw new AppError('CONFLICT', `Job ${jobId} has no retrieved candidates to confirm.`);
+    }
+
+    const resume = await prisma.tailoredResume.findUniqueOrThrow({
+      where: { id: job.tailoredResumeId },
+      select: { retrievedCandidateIds: true },
+    });
+    const retrievedSet = new Set(resume.retrievedCandidateIds);
+    const invalid = keptCandidateIds.filter((id) => !retrievedSet.has(id));
+    if (invalid.length > 0) {
+      throw new AppError(
+        'VALIDATION_FAILED',
+        'keptCandidateIds must be a subset of the retrieved candidates.',
+      );
+    }
+
+    await prisma.tailoredResume.update({
+      where: { id: job.tailoredResumeId },
+      data: { selectedBulletIds: keptCandidateIds },
+    });
+    logger.info({ jobId, kept: keptCandidateIds.length }, 'retrieval checkpoint confirmed');
   },
   getResume(_resumeId: string): Promise<never> {
     throw new NotImplementedError('resumeEngine.getResume');
@@ -133,3 +264,11 @@ export { getJdParser, setJdParser, StubJdParser, AnthropicJdParser } from './jd-
 export type { JdParser } from './jd-parser.js';
 export { getEnqueuer, setEnqueuer, BullMqEnqueuer } from './queue.js';
 export type { Enqueuer } from './queue.js';
+export {
+  buildRetrievalQueries,
+  rerankCandidates,
+  TOP_K_PER_QUERY,
+  TAG_BOOST,
+  MAX_TAG_BOOST,
+  MAX_CANDIDATES,
+} from './retrieval.js';

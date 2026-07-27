@@ -23,6 +23,16 @@ export {
   getEnqueuer,
   setEnqueuer,
   BullMqEnqueuer,
+  buildRetrievalQueries,
+  rerankCandidates,
 } from './resume-engine/index.js';
 export type { JdParser, Enqueuer } from './resume-engine/index.js';
+export {
+  getEmbedder,
+  setEmbedder,
+  VoyageEmbedder,
+  StubEmbedder,
+  VOYAGE_MODEL,
+} from './embedding/index.js';
+export type { Embedder, EmbeddingInputType } from './embedding/index.js';
 export { NotImplementedError } from './common.js';

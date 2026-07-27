@@ -5,6 +5,7 @@ import { prisma } from '@tailor/db';
 import { setEnqueuer, setJdParser } from '@tailor/modules';
 import { POST as postResume } from './route';
 import { GET as getJob } from './jobs/[jobId]/route';
+import { POST as confirmJob } from './jobs/[jobId]/confirm/route';
 import { POST as signup } from '../auth/signup/route';
 import { POST as login } from '../auth/login/route';
 
@@ -20,9 +21,10 @@ function req(method: string, body?: unknown, token?: string): Request {
 const jp = (jobId: string) => ({ params: Promise.resolve({ jobId }) });
 
 describe('resume routes — auth required (no DB)', () => {
-  it('POST /resumes and GET /jobs/:id → 401 without a token', async () => {
+  it('POST /resumes, GET /jobs/:id, POST /confirm → 401 without a token', async () => {
     expect((await postResume(req('POST', { jdText: 'x' }))).status).toBe(401);
     expect((await getJob(req('GET'), jp('job-1'))).status).toBe(401);
+    expect((await confirmJob(req('POST', { keptCandidateIds: [] }), jp('job-1'))).status).toBe(401);
   });
 });
 
@@ -45,7 +47,7 @@ describe.skipIf(!runDb)('resume routes — parse flow (DB)', () => {
   beforeAll(async () => {
     await cleanup();
     // No Redis / no LLM in tests: stub the enqueuer and force the stub parser.
-    setEnqueuer({ enqueueParse: async () => {} });
+    setEnqueuer({ enqueueParse: async () => {}, enqueueRetrieve: async () => {} });
     setJdParser({
       parse: async () => ({
         required_skills: ['TypeScript'],
