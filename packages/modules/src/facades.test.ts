@@ -12,7 +12,6 @@ import { resumeEngine } from './resume-engine/index.js';
 
 describe('resumeEngine facade — unbuilt stages still stubbed', () => {
   it.each([
-    ['getResume', () => resumeEngine.getResume('r1')],
     [
       'updateResumeLayout',
       () =>

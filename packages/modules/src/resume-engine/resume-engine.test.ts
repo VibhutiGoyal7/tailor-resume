@@ -13,8 +13,30 @@ import { profileModule } from '../profile/index.js';
 import { resumeEngine } from './index.js';
 import { setJdParser, type JdParser } from './jd-parser.js';
 import { setResumeGenerator, StubResumeGenerator } from './generator.js';
+import { setResumeRenderer, type RenderInput } from './renderer.js';
+import { setFileStore, type FileStore } from '../storage/index.js';
 import { setEnqueuer, type Enqueuer } from './queue.js';
 import { setEmbedder, StubEmbedder } from '../embedding/index.js';
+
+/** In-memory FileStore so the generate stage can store exports without disk/R2. */
+function memFileStore(): FileStore & { map: Map<string, Buffer> } {
+  const map = new Map<string, Buffer>();
+  return {
+    map,
+    put: async (key, bytes) => void map.set(key, bytes),
+    get: async (key) => map.get(key) ?? null,
+  };
+}
+
+/** Fake renderer: records what it was asked to render, returns marker bytes per format. */
+function fakeRenderer(sink?: RenderInput[]) {
+  return {
+    render: async (input: RenderInput): Promise<Buffer> => {
+      sink?.push(input);
+      return Buffer.from(`FAKE-${input.format}-${input.templateId}`);
+    },
+  };
+}
 
 const runDb = process.env.RUN_DB_TESTS === '1';
 
@@ -85,6 +107,8 @@ describe.skipIf(!runDb)('resumeEngine parse + retrieve (DB)', () => {
     setJdParser(fakeParser);
     setEmbedder(new StubEmbedder());
     setResumeGenerator(new StubResumeGenerator());
+    setResumeRenderer(fakeRenderer());
+    setFileStore(memFileStore());
     setEnqueuer(fakeEnqueuer());
   });
 
@@ -187,7 +211,8 @@ describe.skipIf(!runDb)('resumeEngine parse + retrieve (DB)', () => {
     expect(status.failedStage).toBeNull();
     expect(status.renderedContent).not.toBeNull();
     const rendered = status.renderedContent!;
-    expect(rendered.templateId).toBe('classic');
+    // 'Scale-up' company_type → suggestTemplateId picks 'modern' (ADR-012).
+    expect(rendered.templateId).toBe('modern');
     expect(rendered.summary.length).toBeGreaterThan(0);
     expect(rendered.bullets.length).toBeGreaterThan(0);
     // Every rendered bullet is grounded in a kept candidate and carries its trace.
@@ -197,6 +222,55 @@ describe.skipIf(!runDb)('resumeEngine parse + retrieve (DB)', () => {
       expect(b.experienceItemId.length).toBeGreaterThan(0);
       expect(b.text.length).toBeGreaterThan(0);
     }
+  });
+
+  it('generate renders + stores both export formats; detail + export expose them', async () => {
+    const renders: RenderInput[] = [];
+    setResumeRenderer(fakeRenderer(renders));
+
+    const { jobId } = await resumeEngine.requestTailoredResume(userId, 'jd');
+    await resumeEngine.runParseStage(jobId, 'jd');
+    await resumeEngine.runRetrieveStage(jobId);
+    const { retrievedCandidates } = await resumeEngine.getJobStatus(userId, jobId);
+    const keep = retrievedCandidates!.map((c) => c.bulletId);
+    await resumeEngine.confirmRetrievedMatches(userId, jobId, keep);
+    await resumeEngine.runGenerateStage(jobId, keep);
+
+    // Renderer was invoked once per format, with the suggested template + skills.
+    expect(renders.map((r) => r.format).sort()).toEqual(['docx', 'pdf']);
+    expect(renders.every((r) => r.templateId === 'modern')).toBe(true);
+    expect(renders[0]!.skills).toContain('Kubernetes');
+
+    // Resume detail lists both formats as available.
+    const job = await prisma.tailoringJob.findUnique({ where: { id: jobId } });
+    const detail = await resumeEngine.getResume(userId, job!.tailoredResumeId!);
+    expect(detail.availableFormats.sort()).toEqual(['docx', 'pdf']);
+    expect(detail.templateId).toBe('modern');
+
+    // Export returns the stored bytes for a format.
+    const pdf = await resumeEngine.getResumeExport(userId, job!.tailoredResumeId!, 'pdf');
+    expect(pdf.contentType).toBe('application/pdf');
+    expect(pdf.bytes.toString()).toBe('FAKE-pdf-modern');
+    expect(pdf.filename.endsWith('.pdf')).toBe(true);
+  });
+
+  it('getResume + getResumeExport 404 for another user / missing format', async () => {
+    const { jobId } = await resumeEngine.requestTailoredResume(userId, 'jd');
+    await resumeEngine.runParseStage(jobId, 'jd');
+    await resumeEngine.runRetrieveStage(jobId);
+    const { retrievedCandidates } = await resumeEngine.getJobStatus(userId, jobId);
+    const keep = retrievedCandidates!.map((c) => c.bulletId);
+    await resumeEngine.confirmRetrievedMatches(userId, jobId, keep);
+    await resumeEngine.runGenerateStage(jobId, keep);
+    const job = await prisma.tailoringJob.findUnique({ where: { id: jobId } });
+    const resumeId = job!.tailoredResumeId!;
+
+    await expect(resumeEngine.getResume('someone-else', resumeId)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(
+      resumeEngine.getResumeExport('someone-else', resumeId, 'pdf'),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it('generate drops hallucinated grounding refs from the model output', async () => {

@@ -2,10 +2,21 @@
 // flow is gated on RUN_DB_TESTS=1. The queue is stubbed so no Redis is needed.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { prisma } from '@tailor/db';
-import { setEnqueuer, setJdParser } from '@tailor/modules';
+import {
+  setEmbedder,
+  setEnqueuer,
+  setFileStore,
+  setJdParser,
+  setResumeGenerator,
+  setResumeRenderer,
+  StubEmbedder,
+  StubResumeGenerator,
+} from '@tailor/modules';
 import { POST as postResume } from './route';
 import { GET as getJob } from './jobs/[jobId]/route';
 import { POST as confirmJob } from './jobs/[jobId]/confirm/route';
+import { GET as getResumeDetail } from './[id]/route';
+import { GET as exportResume } from './[id]/export/route';
 import { POST as signup } from '../auth/signup/route';
 import { POST as login } from '../auth/login/route';
 
@@ -18,13 +29,25 @@ function req(method: string, body?: unknown, token?: string): Request {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
+/** A GET request to an arbitrary URL (for query strings like ?format=pdf). */
+function getReq(url: string, token?: string): Request {
+  const headers: Record<string, string> = {};
+  if (token) headers.authorization = `Bearer ${token}`;
+  return new Request(url, { method: 'GET', headers });
+}
 const jp = (jobId: string) => ({ params: Promise.resolve({ jobId }) });
+const idp = (id: string) => ({ params: Promise.resolve({ id }) });
 
 describe('resume routes — auth required (no DB)', () => {
-  it('POST /resumes, GET /jobs/:id, POST /confirm → 401 without a token', async () => {
+  it('every resume route → 401 without a token', async () => {
     expect((await postResume(req('POST', { jdText: 'x' }))).status).toBe(401);
     expect((await getJob(req('GET'), jp('job-1'))).status).toBe(401);
     expect((await confirmJob(req('POST', { keptCandidateIds: [] }), jp('job-1'))).status).toBe(401);
+    expect((await getResumeDetail(req('GET'), idp('r-1'))).status).toBe(401);
+    expect(
+      (await exportResume(getReq('http://localhost/api/resumes/r-1/export?format=pdf'), idp('r-1')))
+        .status,
+    ).toBe(401);
   });
 });
 
@@ -46,8 +69,13 @@ describe.skipIf(!runDb)('resume routes — parse flow (DB)', () => {
 
   beforeAll(async () => {
     await cleanup();
-    // No Redis / no LLM in tests: stub the enqueuer and force the stub parser.
-    setEnqueuer({ enqueueParse: async () => {}, enqueueRetrieve: async () => {} });
+    // No Redis / no LLM / no Voyage / no R2 in tests: inject stubs + fakes across
+    // the whole pipeline so the routes run end-to-end without external infra.
+    setEnqueuer({
+      enqueueParse: async () => {},
+      enqueueRetrieve: async () => {},
+      enqueueGenerate: async () => {},
+    });
     setJdParser({
       parse: async () => ({
         required_skills: ['TypeScript'],
@@ -56,6 +84,14 @@ describe.skipIf(!runDb)('resume routes — parse flow (DB)', () => {
         company_type: 'Startup',
         key_responsibilities: ['Ship things'],
       }),
+    });
+    setEmbedder(new StubEmbedder());
+    setResumeGenerator(new StubResumeGenerator());
+    setResumeRenderer({ render: async (i) => Buffer.from(`FAKE-${i.format}`) });
+    const store = new Map<string, Buffer>();
+    setFileStore({
+      put: async (k, b) => void store.set(k, b),
+      get: async (k) => store.get(k) ?? null,
     });
     await signup(req('POST', { email, password }));
     const res = await login(req('POST', { email, password }));
@@ -88,5 +124,52 @@ describe.skipIf(!runDb)('resume routes — parse flow (DB)', () => {
   it('POST /resumes with empty jdText → 400', async () => {
     const res = await postResume(req('POST', { jdText: '' }, token));
     expect(res.status).toBe(400);
+  });
+
+  it('full pipeline → GET /resumes/:id detail + export streams the file', async () => {
+    const { resumeEngine } = await import('@tailor/modules');
+
+    // Drive the whole pipeline the way the worker would (routes cover the HTTP edge).
+    const post = await postResume(req('POST', { jdText: 'Senior TS role at a startup' }, token));
+    const { jobId } = (await post.json()) as { jobId: string };
+    await resumeEngine.runParseStage(jobId, 'Senior TS role at a startup');
+    await resumeEngine.runRetrieveStage(jobId);
+    const status = (await (await getJob(req('GET', undefined, token), jp(jobId))).json()) as {
+      retrievedCandidates: { bulletId: string }[] | null;
+    };
+    const keep = (status.retrievedCandidates ?? []).map((c) => c.bulletId);
+    const confirmRes = await confirmJob(req('POST', { keptCandidateIds: keep }, token), jp(jobId));
+    expect(confirmRes.status).toBe(202);
+    await resumeEngine.runGenerateStage(jobId, keep);
+
+    const job = await prisma.tailoringJob.findUnique({ where: { id: jobId } });
+    const resumeId = job!.tailoredResumeId!;
+
+    // Detail lists the rendered formats.
+    const detailRes = await getResumeDetail(req('GET', undefined, token), idp(resumeId));
+    expect(detailRes.status).toBe(200);
+    const detail = (await detailRes.json()) as { availableFormats: string[]; templateId: string };
+    expect(detail.availableFormats.sort()).toEqual(['docx', 'pdf']);
+
+    // Export streams the file with download headers.
+    const exp = await exportResume(
+      getReq(`http://localhost/api/resumes/${resumeId}/export?format=pdf`, token),
+      idp(resumeId),
+    );
+    expect(exp.status).toBe(200);
+    expect(exp.headers.get('content-type')).toBe('application/pdf');
+    expect(exp.headers.get('content-disposition')).toContain('attachment');
+    expect(Buffer.from(await exp.arrayBuffer()).toString()).toBe('FAKE-pdf');
+
+    // Bad format → 400; unknown id → 404.
+    expect(
+      (
+        await exportResume(
+          getReq(`http://localhost/api/resumes/${resumeId}/export?format=txt`, token),
+          idp(resumeId),
+        )
+      ).status,
+    ).toBe(400);
+    expect((await getResumeDetail(req('GET', undefined, token), idp('nope'))).status).toBe(404);
   });
 });

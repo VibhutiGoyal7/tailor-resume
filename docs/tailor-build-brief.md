@@ -17,8 +17,9 @@
 | Database | Postgres + **pgvector**, via **Prisma** | Neon or Supabase free tier |
 | Embeddings | Voyage AI (`voyage-4` family) | ADR-003 |
 | LLM | Anthropic API directly (Claude Sonnet for generation, Haiku for parsing/extraction) — no LangChain | ADR-004 |
-| PDF rendering | `@react-pdf/renderer`, runs in the **worker** process | ADR-012 |
-| DOCX rendering | `docxtemplater`, also in worker | ADR-012 |
+| PDF rendering | `@react-pdf/renderer`, runs in the **worker** process (needs React 18 — see note) | ADR-012 |
+| DOCX rendering | **`docx`** (programmatic; supersedes `docxtemplater` — ADR-012 amendment, M6), also in worker | ADR-012 |
+| File storage client | `@aws-sdk/client-s3` (R2 is S3-compatible), behind a `FileStore` interface; local-disk fallback in dev | ADR-012 / M6 |
 | File storage | Cloudflare R2 | Generated resume files |
 | Auth | Self-rolled JWT (argon2, access+refresh rotation) + **Resend** for transactional email | ADR-010 |
 | Infra | Docker Compose locally; Render or Railway (two services: `web` running Next.js, `worker` running the Node worker) + Redis + Postgres add-ons; GitHub Actions CI/CD | ADR-013 |
@@ -375,7 +376,12 @@ The **parse**, **retrieve**, and **generate** stages are all implemented end-to-
 - **ADR-017 checkpoint.** Retrieve does **not** auto-enqueue generate. `GET /jobs/:jobId` returns `retrievedCandidates` (persisted snapshot with text/tags/score in new `TailoredResume.retrievedCandidates` Json column). `POST /jobs/:jobId/confirm { keptCandidateIds }` validates the kept set ⊆ retrieved and records `selectedBulletIds`.
 - **Generate stage (ADR-004 step 3 / Milestone 6).** `confirmRetrievedMatches` now records the kept set, advances the job `awaiting_confirmation → generating`, and enqueues `generateResume` — this is the **only** place generate is enqueued (ADR-017 two-phase; the worker never auto-chains retrieve→generate). `runGenerateStage`: (1) loads the parsed JD + the kept candidate snapshot (`selectKeptCandidates` over the persisted `retrievedCandidates`, so it never re-queries profile's tables — ADR-008); (2) pulls optional Resume Basics (name/summary) via `profileModule.getResumeBasics` to steer the tailored summary; (3) calls the injectable `ResumeGenerator` for a **structured** selection/rewrite; (4) **reconciles grounding** (`reconcileGeneratedResume` — drops any bullet whose `sourceBulletId` isn't in the kept set so a hallucinated ref can't leak in, attaches the real `experienceItemId` for the per-bullet source trace, dedupes, caps at `MAX_GENERATED_BULLETS = 12`); (5) persists `renderedContent` and advances `generating → done`. On failure: `failedStage = "generating"`, rethrow. `GET /jobs/:jobId` now also returns `renderedContent` once `done`.
   - **Generator behind an interface with stub fallback (auto-selected), same pattern as parse/retrieve:** `AnthropicResumeGenerator` (Claude Sonnet — `RESUME_GEN_MODEL = "claude-sonnet-5"`, ADR-004 — with structured output + adaptive thinking) when `ANTHROPIC_API_KEY` is set, else `StubResumeGenerator` (deterministic: selects the kept candidates in ranked order and echoes their text, faithful/never-inventing, with a canned JD-derived summary). So the full parse→retrieve→confirm→generate pipeline runs and demos **keyless**; adding a key switches to real Sonnet generation with zero code change. With the stub, the *plumbing* is exercised end-to-end but the rewriting is not semantically meaningful — real tailoring needs the real generator.
-- **Still deferred (intentional):** `TailoredResume.templateId` is a placeholder `"classic"` until template selection is designed (§9b/§10 open items), and the react-pdf/docx **renderers** (ADR-012) that lay `renderedContent` out per template + the export endpoint are a later Milestone 6 slice — `runGenerateStage` produces the template-agnostic *content*, not the rendered file yet. `resumeEngine.getResume` / `updateResumeLayout` remain scaffolds.
+- **Render + export (ADR-012 / ADR-018, Milestone 6 slice 2).** `runGenerateStage` now also renders the export files and stores them: it renders **PDF** (`@react-pdf/renderer`) and **DOCX** (`docx`) for the resume's template, uploads both via the `FileStore`, and records the keys on `TailoredResume.exportFiles`. `templateId` is chosen at parse time by rule-based auto-suggestion from `company_type` (`suggestTemplateId`, ADR-012 — retires the old `"classic"` placeholder). **3 templates** are implemented for both formats (ADR-018): `ats` (Clean/ATS-safe, default), `modern` (two-column), `compact` (dense) — registry + metadata in `shared-types` (`TEMPLATES`).
+  - **Renderer boundary (CLAUDE.md §7).** The render deps (`@react-pdf/renderer`, `docx`) live only in `apps/worker`; the renderer is *injected* into the resume-engine facade at worker startup (`setResumeRenderer`), so the `web` deployable never imports them. `FileStore` (in `packages/modules`) moves bytes only and is safe for web to import.
+  - **Storage (keyless).** `FileStore` = `R2FileStore` (`@aws-sdk/client-s3`) when `R2_*` is set, else `LocalFileStore` (writes under `FILE_STORE_DIR`), so the whole pipeline — including download — runs with no cloud account.
+  - **New routes.** `GET /resumes/:id` (detail: template, jd_parsed, renderedContent, `availableFormats`) and `GET /resumes/:id/export?format=pdf|docx` (streams the stored file as an attachment). Both facade-backed (`getResume`, `getResumeExport`), user-scoped.
+  - **React 18 pin.** `@react-pdf/renderer` 4.x needs React 18; pinned repo-wide via npm `overrides` (web is API-only, mobile/RN already on 18.3.1) — see the ADR-012 amendment in the project doc.
+- **Still deferred (intentional):** template *selection* UI + `updateResumeLayout` (section reorder/hide, template override) is **Milestone 7**; `runGenerateStage` renders the auto-suggested template only, and re-rendering on a template/layout change lands with M7. Resume **history list** (`GET /resumes`) and `DELETE /resumes/:id` are not built yet.
 
 ---
 
@@ -425,11 +431,13 @@ VOYAGE_API_KEY=
 # Email
 RESEND_API_KEY=
 
-# File storage
+# File storage — rendered resume exports. If the R2_* set is incomplete, exports
+# fall back to local disk (FILE_STORE_DIR) so the pipeline runs keyless.
 R2_ACCOUNT_ID=
 R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
 R2_BUCKET_NAME=
+FILE_STORE_DIR=.tailor-files          # local-disk export fallback (only when R2 unset)
 
 # App
 NODE_ENV=development | production

@@ -12,18 +12,28 @@
 import { prisma, Prisma } from '@tailor/db';
 import {
   AppError,
+  EXPORT_CONTENT_TYPES,
+  EXPORT_FORMATS,
+  suggestTemplateId,
+  type ExportFormat,
   type JdParsed,
   type JobStage,
   type JobStatusView,
   type RenderedResume,
+  type ResumeExportFile,
   type RetrievedCandidateView,
+  type StoredExportFiles,
+  type TailoredResumeView,
+  type TemplateId,
 } from '@tailor/shared-types';
 import { logger } from '../logger.js';
 import { NotImplementedError } from '../common.js';
 import { profileModule } from '../profile/index.js';
 import { getEmbedder } from '../embedding/index.js';
+import { getFileStore } from '../storage/index.js';
 import { getJdParser } from './jd-parser.js';
 import { getResumeGenerator } from './generator.js';
+import { getResumeRenderer, type RenderBasics } from './renderer.js';
 import { getEnqueuer } from './queue.js';
 import { buildRetrievalQueries, rerankCandidates, TOP_K_PER_QUERY } from './retrieval.js';
 import {
@@ -32,13 +42,54 @@ import {
   selectKeptCandidates,
 } from './generation.js';
 
-/** Template used until template selection ships (build brief open items). */
-const DEFAULT_TEMPLATE_ID = 'classic';
-
 export interface UpdateResumeLayoutInput {
   sectionOrder: string[];
   hiddenSections: string[];
   layoutVariantId?: string;
+}
+
+/** Kebab-case a name for a download filename; empty → falls back at the call site. */
+function slug(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Render each export format for a resume and store the bytes via the FileStore,
+ * returning the stored-file map to persist on `TailoredResume.exportFiles`. The
+ * renderer is injected (worker-only, ADR-012 / CLAUDE.md §7); the FileStore is R2
+ * in prod or local disk in dev (keyless).
+ */
+async function renderAndStoreExports(
+  resumeId: string,
+  opts: {
+    templateId: TemplateId;
+    rendered: RenderedResume;
+    basics: RenderBasics;
+    skills: string[];
+  },
+): Promise<StoredExportFiles> {
+  const renderer = getResumeRenderer();
+  const store = getFileStore();
+  const files: StoredExportFiles = {};
+  for (const format of EXPORT_FORMATS) {
+    const bytes = await renderer.render({
+      format,
+      templateId: opts.templateId,
+      content: opts.rendered,
+      basics: opts.basics,
+      skills: opts.skills,
+    });
+    const key = `resumes/${resumeId}/resume.${format}`;
+    const filename = `${slug(opts.basics.fullName) || 'resume'}.${format}`;
+    await store.put(key, bytes, EXPORT_CONTENT_TYPES[format]);
+    const file: ResumeExportFile = { key, contentType: EXPORT_CONTENT_TYPES[format], filename };
+    files[format] = file;
+  }
+  return files;
 }
 
 export const resumeEngine = {
@@ -79,7 +130,8 @@ export const resumeEngine = {
             // JdParsed is a fixed-shape interface; Prisma's Json input wants a
             // structural JSON type, so cast at the persistence boundary.
             jdParsed: jdParsed as unknown as Prisma.InputJsonValue,
-            templateId: DEFAULT_TEMPLATE_ID,
+            // Rule-based auto-suggestion from company_type (ADR-012); user can override later.
+            templateId: suggestTemplateId(jdParsed),
             sectionOrder: [],
             hiddenSections: [],
             selectedBulletIds: [],
@@ -310,10 +362,31 @@ export const resumeEngine = {
         input.maxBullets,
       );
 
+      // Render the export files (PDF + DOCX) and store them (ADR-012). The renderer
+      // is injected by the worker (react-pdf / docx) — worker-only, so the web
+      // deployable never pulls in the render deps (CLAUDE.md §7).
+      const exportFiles = await renderAndStoreExports(resume.id, {
+        templateId: resume.templateId as TemplateId,
+        rendered,
+        basics: {
+          fullName: basics?.fullName ?? '',
+          phone: basics?.phone,
+          location: basics?.location,
+          links: basics?.links,
+        },
+        // Candidate skills for the two-column sidebar: the tags on the kept bullets.
+        skills: Array.from(
+          new Set(candidates.flatMap((c) => c.tags.map((t) => t.trim())).filter(Boolean)),
+        ),
+      });
+
       await prisma.$transaction(async (tx) => {
         await tx.tailoredResume.update({
           where: { id: resume.id },
-          data: { renderedContent: rendered as unknown as Prisma.InputJsonValue },
+          data: {
+            renderedContent: rendered as unknown as Prisma.InputJsonValue,
+            exportFiles: exportFiles as unknown as Prisma.InputJsonValue,
+          },
         });
         await tx.tailoringJob.update({
           where: { id: jobId },
@@ -322,8 +395,8 @@ export const resumeEngine = {
       });
 
       logger.info(
-        { jobId, bulletCount: rendered.bullets.length },
-        'generate stage complete; renderedContent persisted, stage -> done',
+        { jobId, bulletCount: rendered.bullets.length, formats: Object.keys(exportFiles) },
+        'generate stage complete; renderedContent + exports persisted, stage -> done',
       );
     } catch (err) {
       await prisma.tailoringJob.update({
@@ -334,8 +407,50 @@ export const resumeEngine = {
       throw err;
     }
   },
-  getResume(_resumeId: string): Promise<never> {
-    throw new NotImplementedError('resumeEngine.getResume');
+  /**
+   * Resume detail (build brief §5). User-scoped (404 for a missing or others'
+   * resume, so ids aren't enumerable). `availableFormats` lists which exports have
+   * been rendered and are ready to download.
+   */
+  async getResume(userId: string, resumeId: string): Promise<TailoredResumeView> {
+    const resume = await prisma.tailoredResume.findFirst({ where: { id: resumeId, userId } });
+    if (!resume) throw new AppError('NOT_FOUND', `Resume ${resumeId} not found.`);
+    const exportFiles = (resume.exportFiles as StoredExportFiles | null) ?? {};
+    return {
+      id: resume.id,
+      templateId: resume.templateId as TemplateId,
+      jdParsed: resume.jdParsed as unknown as JdParsed,
+      renderedContent: (resume.renderedContent as unknown as RenderedResume | null) ?? null,
+      availableFormats: EXPORT_FORMATS.filter((f) => exportFiles[f]),
+      createdAt: resume.createdAt.toISOString(),
+    };
+  },
+
+  /**
+   * Fetch a rendered export file's bytes for download (GET /resumes/:id/export).
+   * User-scoped; 404 if the resume, the requested format, or the stored bytes are
+   * missing. The route streams the returned bytes with the given content type.
+   */
+  async getResumeExport(
+    userId: string,
+    resumeId: string,
+    format: ExportFormat,
+  ): Promise<{ bytes: Buffer; contentType: string; filename: string }> {
+    const resume = await prisma.tailoredResume.findFirst({
+      where: { id: resumeId, userId },
+      select: { exportFiles: true },
+    });
+    if (!resume) throw new AppError('NOT_FOUND', `Resume ${resumeId} not found.`);
+    const exportFiles = (resume.exportFiles as StoredExportFiles | null) ?? {};
+    const file = exportFiles[format];
+    if (!file) {
+      throw new AppError('NOT_FOUND', `Resume ${resumeId} has no ${format} export ready.`);
+    }
+    const bytes = await getFileStore().get(file.key);
+    if (!bytes) {
+      throw new AppError('NOT_FOUND', `Export file for resume ${resumeId} is missing.`);
+    }
+    return { bytes, contentType: file.contentType, filename: file.filename };
   },
   updateResumeLayout(_resumeId: string, _input: UpdateResumeLayoutInput): Promise<never> {
     throw new NotImplementedError('resumeEngine.updateResumeLayout');
@@ -353,6 +468,8 @@ export {
   RESUME_GEN_MODEL,
 } from './generator.js';
 export type { ResumeGenerator, GenerationInput, GenerationCandidate } from './generator.js';
+export { getResumeRenderer, setResumeRenderer, NoopResumeRenderer } from './renderer.js';
+export type { ResumeRenderer, RenderInput, RenderBasics } from './renderer.js';
 export { getEnqueuer, setEnqueuer, BullMqEnqueuer } from './queue.js';
 export type { Enqueuer } from './queue.js';
 export {
