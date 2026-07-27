@@ -6,12 +6,24 @@
 // The real BullMQ/Redis client is behind the Enqueuer interface and lazy-loaded,
 // so unit tests inject an in-memory fake (setEnqueuer) and never need Redis —
 // CLAUDE.md Section 2 (no real infra calls in tests).
-import { QUEUE_NAMES, type ParseJDJob } from '@tailor/shared-types';
+import {
+  QUEUE_NAMES,
+  type GenerateResumeJob,
+  type ParseJDJob,
+  type RenderResumeJob,
+  type RetrieveCandidatesJob,
+} from '@tailor/shared-types';
 import { logger } from '../logger.js';
 
 export interface Enqueuer {
   /** Enqueue the parse-JD job that kicks off a tailoring pipeline (ADR-017). */
   enqueueParse(job: ParseJDJob): Promise<void>;
+  /** Enqueue the retrieve job (chained after a successful parse, ADR-009). */
+  enqueueRetrieve(job: RetrieveCandidatesJob): Promise<void>;
+  /** Enqueue the generate job (only from POST /confirm — ADR-017 two-phase). */
+  enqueueGenerate(job: GenerateResumeJob): Promise<void>;
+  /** Enqueue a re-render after a layout change (Milestone 7 — resume-scoped). */
+  enqueueRender(job: RenderResumeJob): Promise<void>;
 }
 
 /**
@@ -49,6 +61,24 @@ export class BullMqEnqueuer implements Enqueuer {
     const queue = await this.getQueue(QUEUE_NAMES.parse);
     await queue.add('parse', job);
     logger.info({ jobId: job.jobId }, 'enqueued parse-jd job');
+  }
+
+  async enqueueRetrieve(job: RetrieveCandidatesJob): Promise<void> {
+    const queue = await this.getQueue(QUEUE_NAMES.retrieve);
+    await queue.add('retrieve', job);
+    logger.info({ jobId: job.jobId }, 'enqueued retrieve-candidates job');
+  }
+
+  async enqueueGenerate(job: GenerateResumeJob): Promise<void> {
+    const queue = await this.getQueue(QUEUE_NAMES.generate);
+    await queue.add('generate', job);
+    logger.info({ jobId: job.jobId }, 'enqueued generate-resume job');
+  }
+
+  async enqueueRender(job: RenderResumeJob): Promise<void> {
+    const queue = await this.getQueue(QUEUE_NAMES.render);
+    await queue.add('render', job);
+    logger.info({ resumeId: job.resumeId }, 'enqueued render-resume job');
   }
 }
 

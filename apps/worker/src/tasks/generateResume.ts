@@ -1,9 +1,11 @@
-// Stage 3: call Claude Sonnet with structured JD + kept candidates + template
-// constraints; structured output selects bullets, rewrites phrasing, with
-// grounding references. On success: TailoredResume created, stage -> "done".
-// Implemented in Milestone 6.
+// Stage 3 worker task: generate the tailored resume from the confirmed matches.
+// Thin by design (CLAUDE.md Section 1) — all logic (build the generator input,
+// call the mockable LLM, reconcile grounding, persist renderedContent, advance
+// the job to `done`) lives in the resume-engine facade. A thrown error marks the
+// BullMQ job failed and records failedStage="generating".
+import { resumeEngine } from '@tailor/modules';
 import type { GenerateResumeJob } from '../queues.js';
 
-export async function generateResume(_job: GenerateResumeJob): Promise<void> {
-  throw new Error('generateResume task is not implemented yet (scaffold).');
+export async function generateResume(job: GenerateResumeJob): Promise<void> {
+  await resumeEngine.runGenerateStage(job.jobId, job.keptCandidateIds);
 }

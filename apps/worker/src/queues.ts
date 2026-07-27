@@ -8,4 +8,5 @@ export type {
   ParseJDJob,
   RetrieveCandidatesJob,
   GenerateResumeJob,
+  RenderResumeJob,
 } from '@tailor/shared-types';
