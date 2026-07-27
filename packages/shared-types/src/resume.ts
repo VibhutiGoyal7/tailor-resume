@@ -62,6 +62,57 @@ export interface JobStatusView {
   jdParsed: JdParsed | null;
   /** Present once retrieval has completed (stage `awaiting_confirmation`+). */
   retrievedCandidates: RetrievedCandidateView[] | null;
+  /** Present once generation has completed (stage `done`). */
+  renderedContent: RenderedResume | null;
+}
+
+// --- Generation (generateResume task; TailoredResume.renderedContent) ---
+
+/**
+ * The structured output Claude Sonnet must return for the generate stage (ADR-004).
+ * The model selects from the kept candidate bullets and rewrites their phrasing to
+ * fit the JD, grounding each rewrite in the source bullet it came from
+ * (`sourceBulletId`). Kept free of min/max constraints — structured-output schemas
+ * don't support them (same rule as `jdParsedSchema`).
+ */
+export const generatedResumeSchema = z.object({
+  /** A tailored professional summary written for this specific JD. */
+  summary: z.string(),
+  bullets: z.array(
+    z.object({
+      /** The retained candidate bullet this rewrite is grounded in (must be a kept id). */
+      sourceBulletId: z.string(),
+      /** The rewritten bullet text, tuned to the JD but faithful to the source. */
+      text: z.string(),
+    }),
+  ),
+});
+/** Raw generator output before the facade reconciles grounding refs (see RenderedResume). */
+export type GeneratedResume = z.infer<typeof generatedResumeSchema>;
+
+/**
+ * One generated bullet after the facade has reconciled it: the rewritten text plus
+ * a grounding trace back to the Experience Bank bullet it came from. Hallucinated
+ * `sourceBulletId`s (not in the kept set) are dropped during reconciliation, so
+ * every rendered bullet traces to a real, user-approved source.
+ */
+export interface RenderedBullet {
+  /** Grounding reference — the kept candidate bullet this was rewritten from. */
+  sourceBulletId: string;
+  /** The bullet's parent Experience item (per-bullet source trace, build brief §5). */
+  experienceItemId: string;
+  text: string;
+}
+
+/**
+ * The persisted generate-stage output (`TailoredResume.renderedContent`). What the
+ * "done" job returns and the mobile app renders. Template-agnostic content; the
+ * react-pdf/docx renderers (ADR-012, Milestone 6+) lay this out per `templateId`.
+ */
+export interface RenderedResume {
+  templateId: string;
+  summary: string;
+  bullets: RenderedBullet[];
 }
 
 // --- Embeddings (ADR-003: Voyage voyage-4 family, pgvector) ---

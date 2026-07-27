@@ -15,6 +15,7 @@ import {
   type JdParsed,
   type JobStage,
   type JobStatusView,
+  type RenderedResume,
   type RetrievedCandidateView,
 } from '@tailor/shared-types';
 import { logger } from '../logger.js';
@@ -22,8 +23,14 @@ import { NotImplementedError } from '../common.js';
 import { profileModule } from '../profile/index.js';
 import { getEmbedder } from '../embedding/index.js';
 import { getJdParser } from './jd-parser.js';
+import { getResumeGenerator } from './generator.js';
 import { getEnqueuer } from './queue.js';
 import { buildRetrievalQueries, rerankCandidates, TOP_K_PER_QUERY } from './retrieval.js';
+import {
+  buildGenerationInput,
+  reconcileGeneratedResume,
+  selectKeptCandidates,
+} from './generation.js';
 
 /** Template used until template selection ships (build brief open items). */
 const DEFAULT_TEMPLATE_ID = 'classic';
@@ -186,14 +193,16 @@ export const resumeEngine = {
 
     let jdParsed: JdParsed | null = null;
     let retrievedCandidates: RetrievedCandidateView[] | null = null;
+    let renderedContent: RenderedResume | null = null;
     if (job.tailoredResumeId) {
       const resume = await prisma.tailoredResume.findUnique({
         where: { id: job.tailoredResumeId },
-        select: { jdParsed: true, retrievedCandidates: true },
+        select: { jdParsed: true, retrievedCandidates: true, renderedContent: true },
       });
       jdParsed = (resume?.jdParsed as JdParsed | undefined) ?? null;
       retrievedCandidates =
         (resume?.retrievedCandidates as RetrievedCandidateView[] | undefined) ?? null;
+      renderedContent = (resume?.renderedContent as RenderedResume | undefined) ?? null;
     }
 
     return {
@@ -202,18 +211,17 @@ export const resumeEngine = {
       failedStage: job.failedStage,
       jdParsed,
       retrievedCandidates,
+      renderedContent,
     };
   },
 
   /**
    * ADR-017 checkpoint confirmation: the user's kept subset of the retrieved
-   * candidates. Validates the kept ids are a subset of what was retrieved and
-   * records them as `selectedBulletIds`. User-scoped (404 for others' jobs) and
-   * only valid while awaiting confirmation.
-   *
-   * Note: enqueuing the *generate* stage is intentionally deferred to Milestone 6
-   * (when the generate task exists) — same clean-boundary pattern parse→retrieve
-   * used. So the job stays at `awaiting_confirmation` with the selection recorded.
+   * candidates. Validates the kept ids are a subset of what was retrieved,
+   * records them as `selectedBulletIds`, advances the job to `generating`, and
+   * enqueues the generate stage (this is the *only* place generate is enqueued —
+   * ADR-017 two-phase). User-scoped (404 for others' jobs) and only valid while
+   * awaiting confirmation.
    */
   async confirmRetrievedMatches(
     userId: string,
@@ -245,11 +253,86 @@ export const resumeEngine = {
       );
     }
 
-    await prisma.tailoredResume.update({
-      where: { id: job.tailoredResumeId },
-      data: { selectedBulletIds: keptCandidateIds },
+    await prisma.$transaction(async (tx) => {
+      await tx.tailoredResume.update({
+        where: { id: job.tailoredResumeId! },
+        data: { selectedBulletIds: keptCandidateIds },
+      });
+      await tx.tailoringJob.update({
+        where: { id: jobId },
+        data: { stage: 'generating', failedStage: null },
+      });
     });
-    logger.info({ jobId, kept: keptCandidateIds.length }, 'retrieval checkpoint confirmed');
+    await getEnqueuer().enqueueGenerate({ jobId, keptCandidateIds });
+    logger.info(
+      { jobId, kept: keptCandidateIds.length },
+      'retrieval checkpoint confirmed; stage -> generating, generate enqueued',
+    );
+  },
+
+  /**
+   * Run the generate stage (invoked by the worker's generateResume task). Loads
+   * the parsed JD + the kept candidate snapshot, calls the injectable generator
+   * (stub when no ANTHROPIC_API_KEY — Claude Sonnet otherwise, ADR-004) for a
+   * structured selection/rewrite, reconciles grounding refs against the kept set
+   * (ADR-004 — drops any hallucinated source id and attaches the real
+   * experienceItemId), persists `renderedContent`, and advances the stage
+   * `generating -> done`. On any failure: `failedStage = "generating"` (stage
+   * unchanged), rethrow so BullMQ's retry policy applies.
+   */
+  async runGenerateStage(jobId: string, keptCandidateIds: string[]): Promise<void> {
+    const job = await prisma.tailoringJob.findUnique({ where: { id: jobId } });
+    if (!job) throw new AppError('NOT_FOUND', `Tailoring job ${jobId} not found.`);
+    if (!job.tailoredResumeId) {
+      throw new AppError('CONFLICT', `Job ${jobId} has no resume to generate.`);
+    }
+
+    try {
+      const resume = await prisma.tailoredResume.findUniqueOrThrow({
+        where: { id: job.tailoredResumeId },
+      });
+      const jdParsed = resume.jdParsed as unknown as JdParsed;
+      const retrievedCandidates =
+        (resume.retrievedCandidates as unknown as RetrievedCandidateView[] | null) ?? [];
+
+      const candidates = selectKeptCandidates(retrievedCandidates, keptCandidateIds);
+      const basics = await profileModule.getResumeBasics(job.userId);
+      const input = buildGenerationInput(jdParsed, candidates, {
+        fullName: basics?.fullName,
+        summary: basics?.summary ?? undefined,
+      });
+
+      const generated = await getResumeGenerator().generate(input);
+      const rendered: RenderedResume = reconcileGeneratedResume(
+        generated,
+        candidates,
+        resume.templateId,
+        input.maxBullets,
+      );
+
+      await prisma.$transaction(async (tx) => {
+        await tx.tailoredResume.update({
+          where: { id: resume.id },
+          data: { renderedContent: rendered as unknown as Prisma.InputJsonValue },
+        });
+        await tx.tailoringJob.update({
+          where: { id: jobId },
+          data: { stage: 'done', failedStage: null },
+        });
+      });
+
+      logger.info(
+        { jobId, bulletCount: rendered.bullets.length },
+        'generate stage complete; renderedContent persisted, stage -> done',
+      );
+    } catch (err) {
+      await prisma.tailoringJob.update({
+        where: { id: jobId },
+        data: { failedStage: 'generating' },
+      });
+      logger.error({ jobId, err: (err as Error).message }, 'generate stage failed');
+      throw err;
+    }
   },
   getResume(_resumeId: string): Promise<never> {
     throw new NotImplementedError('resumeEngine.getResume');
@@ -262,6 +345,14 @@ export const resumeEngine = {
 export { isActive, isTerminal, nextStage } from './stage.js';
 export { getJdParser, setJdParser, StubJdParser, AnthropicJdParser } from './jd-parser.js';
 export type { JdParser } from './jd-parser.js';
+export {
+  getResumeGenerator,
+  setResumeGenerator,
+  StubResumeGenerator,
+  AnthropicResumeGenerator,
+  RESUME_GEN_MODEL,
+} from './generator.js';
+export type { ResumeGenerator, GenerationInput, GenerationCandidate } from './generator.js';
 export { getEnqueuer, setEnqueuer, BullMqEnqueuer } from './queue.js';
 export type { Enqueuer } from './queue.js';
 export {
@@ -272,3 +363,9 @@ export {
   MAX_TAG_BOOST,
   MAX_CANDIDATES,
 } from './retrieval.js';
+export {
+  buildGenerationInput,
+  reconcileGeneratedResume,
+  selectKeptCandidates,
+  MAX_GENERATED_BULLETS,
+} from './generation.js';

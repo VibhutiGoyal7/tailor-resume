@@ -3,10 +3,16 @@
 // no Redis). The DB + pgvector flow is gated on RUN_DB_TESTS=1.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@tailor/db';
-import type { JdParsed, ParseJDJob, RetrieveCandidatesJob } from '@tailor/shared-types';
+import type {
+  GenerateResumeJob,
+  JdParsed,
+  ParseJDJob,
+  RetrieveCandidatesJob,
+} from '@tailor/shared-types';
 import { profileModule } from '../profile/index.js';
 import { resumeEngine } from './index.js';
 import { setJdParser, type JdParser } from './jd-parser.js';
+import { setResumeGenerator, StubResumeGenerator } from './generator.js';
 import { setEnqueuer, type Enqueuer } from './queue.js';
 import { setEmbedder, StubEmbedder } from '../embedding/index.js';
 
@@ -24,10 +30,12 @@ const PARSED: JdParsed = {
 function fakeEnqueuer(sink?: {
   parse?: ParseJDJob[];
   retrieve?: RetrieveCandidatesJob[];
+  generate?: GenerateResumeJob[];
 }): Enqueuer {
   return {
     enqueueParse: async (job) => void sink?.parse?.push(job),
     enqueueRetrieve: async (job) => void sink?.retrieve?.push(job),
+    enqueueGenerate: async (job) => void sink?.generate?.push(job),
   };
 }
 
@@ -76,6 +84,7 @@ describe.skipIf(!runDb)('resumeEngine parse + retrieve (DB)', () => {
   beforeEach(() => {
     setJdParser(fakeParser);
     setEmbedder(new StubEmbedder());
+    setResumeGenerator(new StubResumeGenerator());
     setEnqueuer(fakeEnqueuer());
   });
 
@@ -126,7 +135,10 @@ describe.skipIf(!runDb)('resumeEngine parse + retrieve (DB)', () => {
     expect(top.text).toContain('CI/CD platform');
   });
 
-  it('confirm records the kept subset; rejects ids not in the retrieved set', async () => {
+  it('confirm records the kept subset, advances to generating, and enqueues generate', async () => {
+    const sink = { generate: [] as GenerateResumeJob[] };
+    setEnqueuer(fakeEnqueuer(sink));
+
     const { jobId } = await resumeEngine.requestTailoredResume(userId, 'jd');
     await resumeEngine.runParseStage(jobId, 'jd');
     await resumeEngine.runRetrieveStage(jobId);
@@ -140,10 +152,97 @@ describe.skipIf(!runDb)('resumeEngine parse + retrieve (DB)', () => {
       where: { id: job!.tailoredResumeId! },
     });
     expect(resume.selectedBulletIds).toEqual(keep);
+    expect(job?.stage).toBe('generating');
+    expect(sink.generate).toEqual([{ jobId, keptCandidateIds: keep }]);
+  });
+
+  it('confirm rejects ids not in the retrieved set (and does not enqueue generate)', async () => {
+    const sink = { generate: [] as GenerateResumeJob[] };
+    setEnqueuer(fakeEnqueuer(sink));
+
+    const { jobId } = await resumeEngine.requestTailoredResume(userId, 'jd');
+    await resumeEngine.runParseStage(jobId, 'jd');
+    await resumeEngine.runRetrieveStage(jobId);
 
     await expect(
       resumeEngine.confirmRetrievedMatches(userId, jobId, ['not-a-real-candidate']),
     ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    expect(sink.generate).toEqual([]);
+    const status = await resumeEngine.getJobStatus(userId, jobId);
+    expect(status.stage).toBe('awaiting_confirmation');
+  });
+
+  it('generate produces grounded renderedContent and advances to done', async () => {
+    const { jobId } = await resumeEngine.requestTailoredResume(userId, 'jd');
+    await resumeEngine.runParseStage(jobId, 'jd');
+    await resumeEngine.runRetrieveStage(jobId);
+    const { retrievedCandidates } = await resumeEngine.getJobStatus(userId, jobId);
+    const keep = retrievedCandidates!.map((c) => c.bulletId);
+
+    await resumeEngine.confirmRetrievedMatches(userId, jobId, keep);
+    await resumeEngine.runGenerateStage(jobId, keep);
+
+    const status = await resumeEngine.getJobStatus(userId, jobId);
+    expect(status.stage).toBe('done');
+    expect(status.failedStage).toBeNull();
+    expect(status.renderedContent).not.toBeNull();
+    const rendered = status.renderedContent!;
+    expect(rendered.templateId).toBe('classic');
+    expect(rendered.summary.length).toBeGreaterThan(0);
+    expect(rendered.bullets.length).toBeGreaterThan(0);
+    // Every rendered bullet is grounded in a kept candidate and carries its trace.
+    const keptSet = new Set(keep);
+    for (const b of rendered.bullets) {
+      expect(keptSet.has(b.sourceBulletId)).toBe(true);
+      expect(b.experienceItemId.length).toBeGreaterThan(0);
+      expect(b.text.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('generate drops hallucinated grounding refs from the model output', async () => {
+    setResumeGenerator({
+      generate: async (input) => ({
+        summary: 'A tailored summary.',
+        bullets: [
+          // One valid ref (first kept candidate) + one hallucinated id.
+          { sourceBulletId: input.candidates[0]!.bulletId, text: 'Rewritten bullet.' },
+          { sourceBulletId: 'hallucinated-id', text: 'Invented experience.' },
+        ],
+      }),
+    });
+
+    const { jobId } = await resumeEngine.requestTailoredResume(userId, 'jd');
+    await resumeEngine.runParseStage(jobId, 'jd');
+    await resumeEngine.runRetrieveStage(jobId);
+    const { retrievedCandidates } = await resumeEngine.getJobStatus(userId, jobId);
+    const keep = retrievedCandidates!.map((c) => c.bulletId);
+
+    await resumeEngine.confirmRetrievedMatches(userId, jobId, keep);
+    await resumeEngine.runGenerateStage(jobId, keep);
+
+    const { renderedContent } = await resumeEngine.getJobStatus(userId, jobId);
+    expect(renderedContent!.bullets).toHaveLength(1);
+    expect(renderedContent!.bullets[0]!.text).toBe('Rewritten bullet.');
+  });
+
+  it('generate records failedStage=generating when the generator throws', async () => {
+    const { jobId } = await resumeEngine.requestTailoredResume(userId, 'jd');
+    await resumeEngine.runParseStage(jobId, 'jd');
+    await resumeEngine.runRetrieveStage(jobId);
+    const { retrievedCandidates } = await resumeEngine.getJobStatus(userId, jobId);
+    const keep = retrievedCandidates!.map((c) => c.bulletId);
+    await resumeEngine.confirmRetrievedMatches(userId, jobId, keep);
+
+    setResumeGenerator({
+      generate: async () => {
+        throw new Error('Sonnet down');
+      },
+    });
+    await expect(resumeEngine.runGenerateStage(jobId, keep)).rejects.toThrow('Sonnet down');
+
+    const status = await resumeEngine.getJobStatus(userId, jobId);
+    expect(status.stage).toBe('generating');
+    expect(status.failedStage).toBe('generating');
   });
 
   it('retrieve records failedStage=retrieving when the embedder throws', async () => {
