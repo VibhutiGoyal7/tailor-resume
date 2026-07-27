@@ -18,7 +18,14 @@ import {
   BorderStyle,
 } from 'docx';
 import type { RenderInput } from '@tailor/modules';
-import { contactLine, TEMPLATE_CONFIG, TOKENS } from './templates.js';
+import type { ResumeSection } from '@tailor/shared-types';
+import {
+  contactLine,
+  sidebarOnRight,
+  TEMPLATE_CONFIG,
+  TOKENS,
+  visibleSections,
+} from './templates.js';
 
 const ACCENT = TOKENS.accent.replace('#', '');
 const INK = TOKENS.ink.replace('#', '');
@@ -80,36 +87,48 @@ export async function renderDocx(input: RenderInput): Promise<Buffer> {
   const skillsBlock =
     input.skills.length > 0 ? [heading('Skills'), ...input.skills.map((sk) => body(sk))] : [];
 
+  // Layout customization (Milestone 7): honor the section order + hidden set, so
+  // DOCX matches the PDF. `experience` always has content; summary/skills blocks
+  // are empty when there's nothing to show.
+  const blockFor: Record<ResumeSection, Paragraph[]> = {
+    summary: summaryBlock,
+    skills: skillsBlock,
+    experience: experienceBlock,
+  };
+  const visible = visibleSections(input.sectionOrder, input.hiddenSections);
+  const inOrder = (sections: ResumeSection[]) => sections.flatMap((sec) => blockFor[sec]);
+
   let children: (Paragraph | Table)[];
   if (cfg.layout === 'two-column') {
-    // Sidebar (contact + skills) beside a main column (name, summary, experience),
-    // laid out as a single borderless two-cell table.
+    // Sidebar (contact + skills) beside a main column (name + other sections in
+    // order), as a single borderless two-cell table. `modern-right` flips the cells.
     const noBorder = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' } as const;
     const borders = { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder };
+    const sidebarCell = new TableCell({
+      width: { size: 32, type: WidthType.PERCENTAGE },
+      borders,
+      children: [contact, ...(visible.includes('skills') ? skillsBlock : [])],
+    });
+    const mainCell = new TableCell({
+      width: { size: 68, type: WidthType.PERCENTAGE },
+      borders,
+      children: [name, ...inOrder(visible.filter((sec) => sec !== 'skills'))],
+    });
     children = [
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         borders: { ...borders, insideHorizontal: noBorder, insideVertical: noBorder },
         rows: [
           new TableRow({
-            children: [
-              new TableCell({
-                width: { size: 32, type: WidthType.PERCENTAGE },
-                borders,
-                children: [contact, ...skillsBlock],
-              }),
-              new TableCell({
-                width: { size: 68, type: WidthType.PERCENTAGE },
-                borders,
-                children: [name, ...summaryBlock, ...experienceBlock],
-              }),
-            ],
+            children: sidebarOnRight(input.layoutVariantId)
+              ? [mainCell, sidebarCell]
+              : [sidebarCell, mainCell],
           }),
         ],
       }),
     ];
   } else {
-    children = [name, contact, ...summaryBlock, ...experienceBlock, ...skillsBlock];
+    children = [name, contact, ...inOrder(visible)];
   }
 
   const doc = new Document({

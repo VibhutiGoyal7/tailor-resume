@@ -17,6 +17,7 @@ import { GET as getJob } from './jobs/[jobId]/route';
 import { POST as confirmJob } from './jobs/[jobId]/confirm/route';
 import { GET as getResumeDetail, DELETE as deleteResume } from './[id]/route';
 import { GET as exportResume } from './[id]/export/route';
+import { PATCH as patchLayout } from './[id]/layout/route';
 import { POST as signup } from '../auth/signup/route';
 import { POST as login } from '../auth/login/route';
 
@@ -50,6 +51,9 @@ describe('resume routes — auth required (no DB)', () => {
     ).toBe(401);
     expect((await listResumes(req('GET'))).status).toBe(401);
     expect((await deleteResume(req('DELETE'), idp('r-1'))).status).toBe(401);
+    expect(
+      (await patchLayout(req('PATCH', { hiddenSections: ['skills'] }), idp('r-1'))).status,
+    ).toBe(401);
   });
 });
 
@@ -77,6 +81,7 @@ describe.skipIf(!runDb)('resume routes — parse flow (DB)', () => {
       enqueueParse: async () => {},
       enqueueRetrieve: async () => {},
       enqueueGenerate: async () => {},
+      enqueueRender: async () => {},
     });
     setJdParser({
       parse: async () => ({
@@ -211,5 +216,50 @@ describe.skipIf(!runDb)('resume routes — parse flow (DB)', () => {
 
     // Deleting again (now missing) → 404.
     expect((await deleteResume(req('DELETE', undefined, token), idp(resumeId))).status).toBe(404);
+  });
+
+  it('PATCH /resumes/:id/layout updates layout; bad variant → 400', async () => {
+    const { resumeEngine } = await import('@tailor/modules');
+
+    const post = await postResume(req('POST', { jdText: 'Senior TS role at a startup' }, token));
+    const { jobId } = (await post.json()) as { jobId: string };
+    await resumeEngine.runParseStage(jobId, 'Senior TS role at a startup');
+    await resumeEngine.runRetrieveStage(jobId);
+    const status = (await (await getJob(req('GET', undefined, token), jp(jobId))).json()) as {
+      retrievedCandidates: { bulletId: string }[] | null;
+    };
+    const keep = (status.retrievedCandidates ?? []).map((c) => c.bulletId);
+    await confirmJob(req('POST', { keptCandidateIds: keep }, token), jp(jobId));
+    await resumeEngine.runGenerateStage(jobId, keep);
+    const job = await prisma.tailoringJob.findUnique({ where: { id: jobId } });
+    const resumeId = job!.tailoredResumeId!;
+
+    // Reorder + hide a section, keep template.
+    const patched = await patchLayout(
+      req(
+        'PATCH',
+        { sectionOrder: ['experience', 'summary', 'skills'], hiddenSections: ['skills'] },
+        token,
+      ),
+      idp(resumeId),
+    );
+    expect(patched.status).toBe(200);
+    const view = (await patched.json()) as { hiddenSections: string[]; sectionOrder: string[] };
+    expect(view.hiddenSections).toEqual(['skills']);
+    expect(view.sectionOrder).toEqual(['experience', 'summary', 'skills']);
+
+    // A variant that isn't valid for the current (startup→modern) template → 400.
+    const bad = await patchLayout(
+      req('PATCH', { layoutVariantId: 'ats-standard' }, token),
+      idp(resumeId),
+    );
+    expect(bad.status).toBe(400);
+
+    // Duplicate sections in the order → 400 (schema refinement).
+    const dup = await patchLayout(
+      req('PATCH', { sectionOrder: ['summary', 'summary'] }, token),
+      idp(resumeId),
+    );
+    expect(dup.status).toBe(400);
   });
 });

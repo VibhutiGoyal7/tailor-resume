@@ -63,12 +63,17 @@ describe('reconcileGeneratedResume', () => {
       summary: '  A tailored summary.  ',
       bullets: [{ sourceBulletId: 'b1', text: '  Led the platform build.  ' }],
     };
-    const rendered = reconcileGeneratedResume(generated, candidates, 'classic');
+    const rendered = reconcileGeneratedResume(generated, candidates, 'ats', undefined, [
+      'Go',
+      'Kubernetes',
+    ]);
     expect(rendered.summary).toBe('A tailored summary.');
-    expect(rendered.templateId).toBe('classic');
+    expect(rendered.templateId).toBe('ats');
     expect(rendered.bullets).toEqual([
       { sourceBulletId: 'b1', experienceItemId: 'i1', text: 'Led the platform build.' },
     ]);
+    // Skills are carried into the rendered content for later re-render (M7).
+    expect(rendered.skills).toEqual(['Go', 'Kubernetes']);
   });
 
   it('drops hallucinated source ids and blank rewrites', () => {

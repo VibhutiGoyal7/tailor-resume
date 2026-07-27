@@ -4,7 +4,7 @@
 // startup — this module only knows the interface. That injection is what keeps the
 // heavy render deps out of the `web` deployable (CLAUDE.md §7): web imports this
 // facade but never registers a renderer, and the default renderer imports nothing.
-import type { ExportFormat, RenderedResume, TemplateId } from '@tailor/shared-types';
+import type { ExportFormat, RenderedResume, ResumeSection, TemplateId } from '@tailor/shared-types';
 
 /** Contact block for the rendered resume header / sidebar. */
 export interface RenderBasics {
@@ -23,6 +23,12 @@ export interface RenderInput {
   basics: RenderBasics;
   /** Candidate skills (aggregated bullet tags) — shown in the two-column sidebar. */
   skills: string[];
+  /** Resolved section order (never empty) — the sequence the renderer emits sections in. */
+  sectionOrder: ResumeSection[];
+  /** Sections to omit from the rendered resume. */
+  hiddenSections: ResumeSection[];
+  /** Active layout variant (LAYOUT_VARIANTS) — e.g. which side `modern`'s sidebar sits on. */
+  layoutVariantId: string;
 }
 
 export interface ResumeRenderer {

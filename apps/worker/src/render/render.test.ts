@@ -3,7 +3,7 @@
 // checks — a full layout assertion isn't the point; that a real PDF/DOCX comes out
 // of every template is.
 import { describe, expect, it } from 'vitest';
-import { TEMPLATE_IDS, type RenderedResume } from '@tailor/shared-types';
+import { DEFAULT_SECTION_ORDER, TEMPLATE_IDS, type RenderedResume } from '@tailor/shared-types';
 import type { RenderInput } from '@tailor/modules';
 import { renderPdf } from './pdf.js';
 import { renderDocx } from './docx.js';
@@ -23,6 +23,7 @@ const content: RenderedResume = {
       text: 'Cut deploy time by 60% with pipeline caching.',
     },
   ],
+  skills: ['Kubernetes', 'Go', 'CI/CD'],
 };
 
 function input(overrides: Partial<RenderInput> = {}): RenderInput {
@@ -37,6 +38,9 @@ function input(overrides: Partial<RenderInput> = {}): RenderInput {
       links: { linkedin: 'linkedin.com/in/ada' },
     },
     skills: ['Kubernetes', 'Go', 'CI/CD'],
+    sectionOrder: DEFAULT_SECTION_ORDER,
+    hiddenSections: [],
+    layoutVariantId: 'ats-standard',
     ...overrides,
   };
 }
@@ -56,5 +60,40 @@ describe('renderDocx', () => {
     // DOCX is a zip container — starts with the PK local-file-header signature.
     expect(bytes[0]).toBe(0x50);
     expect(bytes[1]).toBe(0x4b);
+  });
+});
+
+// Milestone 7: the renderers must honor sectionOrder / hiddenSections / variant.
+// Byte-level diffs are a cheap proxy that layout actually changed the output
+// (extracting PDF/DOCX text isn't the point — that a change takes effect is).
+describe('layout customization (Milestone 7)', () => {
+  it('hiding a section produces a different, smaller PDF', async () => {
+    const full = await renderPdf(input({ templateId: 'ats' }));
+    const hidden = await renderPdf(input({ templateId: 'ats', hiddenSections: ['summary'] }));
+    expect(hidden.length).toBeLessThan(full.length);
+  });
+
+  it('reordering sections changes the PDF output', async () => {
+    const a = await renderPdf(
+      input({ templateId: 'ats', sectionOrder: ['summary', 'experience'] }),
+    );
+    const b = await renderPdf(
+      input({ templateId: 'ats', sectionOrder: ['experience', 'summary'] }),
+    );
+    expect(a.equals(b)).toBe(false);
+  });
+
+  it('modern sidebar side (variant) changes the PDF output', async () => {
+    const left = await renderPdf(input({ templateId: 'modern', layoutVariantId: 'modern-left' }));
+    const right = await renderPdf(input({ templateId: 'modern', layoutVariantId: 'modern-right' }));
+    expect(left.equals(right)).toBe(false);
+  });
+
+  it('DOCX honors hidden sections too', async () => {
+    const full = await renderDocx(input({ format: 'docx', templateId: 'ats' }));
+    const hidden = await renderDocx(
+      input({ format: 'docx', templateId: 'ats', hiddenSections: ['skills', 'summary'] }),
+    );
+    expect(hidden.equals(full)).toBe(false);
   });
 });

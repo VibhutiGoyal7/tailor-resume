@@ -116,6 +116,91 @@ export function suggestTemplateId(jd: Pick<JdParsed, 'company_type'>): TemplateI
   return DEFAULT_TEMPLATE_ID;
 }
 
+// --- Layout customization (PATCH /api/resumes/:id/layout, Milestone 7) ---
+
+/**
+ * The reorderable / hideable body sections of a rendered resume. The contact
+ * header (name + contact line) is always rendered and is not part of this set.
+ * In the two-column `modern` template, `skills` is pinned to the sidebar and the
+ * order below governs the main column (summary / experience).
+ */
+export const RESUME_SECTIONS = ['summary', 'skills', 'experience'] as const;
+export type ResumeSection = (typeof RESUME_SECTIONS)[number];
+
+/** Default section order when the user hasn't customized it. */
+export const DEFAULT_SECTION_ORDER: ResumeSection[] = ['summary', 'skills', 'experience'];
+
+/**
+ * Normalize a stored section order into a full, valid ordering: drop unknown
+ * entries, then append any missing known sections in their default position. So
+ * an empty stored order (freshly parsed resume) resolves to DEFAULT_SECTION_ORDER.
+ */
+export function resolveSectionOrder(stored: string[]): ResumeSection[] {
+  const known = stored.filter((s): s is ResumeSection =>
+    (RESUME_SECTIONS as readonly string[]).includes(s),
+  );
+  const missing = RESUME_SECTIONS.filter((s) => !known.includes(s));
+  return [...known, ...missing];
+}
+
+/**
+ * A layout variant within a template (ADR-018 follow-up). Kept deliberately small
+ * for Phase 1: only `modern` (two-column) has a genuinely meaningful choice — which
+ * side the sidebar sits on — while the single-column templates have one canonical
+ * variant each. Richer per-template variants are a documented follow-up (build brief §10).
+ */
+export interface LayoutVariant {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export const LAYOUT_VARIANTS: Record<TemplateId, LayoutVariant[]> = {
+  ats: [
+    { id: 'ats-standard', name: 'Standard', description: 'Single column, accent-ruled header.' },
+  ],
+  modern: [
+    { id: 'modern-left', name: 'Sidebar left', description: 'Contact + skills on the left.' },
+    { id: 'modern-right', name: 'Sidebar right', description: 'Contact + skills on the right.' },
+  ],
+  compact: [
+    { id: 'compact-standard', name: 'Standard', description: 'Dense single column, small type.' },
+  ],
+};
+
+/** The default variant for each template. */
+export const DEFAULT_LAYOUT_VARIANT: Record<TemplateId, string> = {
+  ats: 'ats-standard',
+  modern: 'modern-left',
+  compact: 'compact-standard',
+};
+
+/** Whether `variantId` is a valid layout variant for `templateId`. */
+export function isValidLayoutVariant(templateId: TemplateId, variantId: string): boolean {
+  return LAYOUT_VARIANTS[templateId].some((v) => v.id === variantId);
+}
+
+/**
+ * PATCH /api/resumes/:id/layout body. Every field is optional (a partial update);
+ * the facade merges with the resume's current layout. `templateId` is a template
+ * override — the build brief's contract lists the three layout fields, but the
+ * project doc's Milestone 7 scope also names template override, so it's included
+ * here (validated against TEMPLATE_IDS). `layoutVariantId` is validated against the
+ * effective template in the facade (it can't be checked in isolation here).
+ */
+export const updateResumeLayoutSchema = z
+  .object({
+    sectionOrder: z.array(z.enum(RESUME_SECTIONS)).optional(),
+    hiddenSections: z.array(z.enum(RESUME_SECTIONS)).optional(),
+    layoutVariantId: z.string().min(1).optional(),
+    templateId: z.enum(TEMPLATE_IDS).optional(),
+  })
+  .refine((o) => !o.sectionOrder || new Set(o.sectionOrder).size === o.sectionOrder.length, {
+    message: 'sectionOrder must not contain duplicate sections.',
+    path: ['sectionOrder'],
+  });
+export type UpdateResumeLayoutInput = z.infer<typeof updateResumeLayoutSchema>;
+
 // --- Export (GET /api/resumes/:id/export?format=pdf|docx; TailoredResume.exportFiles) ---
 
 /** Downloadable resume file formats (build brief §5, ADR-012). */
@@ -166,6 +251,12 @@ export interface TailoredResumeView {
   templateId: TemplateId;
   jdParsed: JdParsed;
   renderedContent: RenderedResume | null;
+  /** Resolved section order (never empty) — the layout the exports were rendered with. */
+  sectionOrder: ResumeSection[];
+  /** Sections the user has hidden from the rendered resume. */
+  hiddenSections: ResumeSection[];
+  /** Active layout variant for the current template (LAYOUT_VARIANTS). */
+  layoutVariantId: string;
   /** Which export formats are ready to download. */
   availableFormats: ExportFormat[];
   createdAt: string;
@@ -218,6 +309,12 @@ export interface RenderedResume {
   templateId: string;
   summary: string;
   bullets: RenderedBullet[];
+  /**
+   * Skills shown in the resume (aggregated candidate tags). Persisted with the
+   * rendered content so a later layout change can re-render the export files
+   * without the retrieval candidates being in hand (Milestone 7).
+   */
+  skills: string[];
 }
 
 // --- Embeddings (ADR-003: Voyage voyage-4 family, pgvector) ---
@@ -247,6 +344,7 @@ export const QUEUE_NAMES = {
   parse: 'parse-jd',
   retrieve: 'retrieve-candidates',
   generate: 'generate-resume',
+  render: 'render-resume',
 } as const;
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
 
@@ -260,4 +358,13 @@ export interface RetrieveCandidatesJob {
 export interface GenerateResumeJob {
   jobId: string;
   keptCandidateIds: string[];
+}
+/**
+ * Re-render a resume's export files after a layout change (Milestone 7). Unlike
+ * the other jobs this is keyed on the resume, not a TailoringJob — it runs after
+ * the pipeline is `done`, re-rendering PDF/DOCX in place from the stored
+ * renderedContent + the new layout, overwriting the same FileStore keys.
+ */
+export interface RenderResumeJob {
+  resumeId: string;
 }

@@ -12,8 +12,11 @@
 import { prisma, Prisma } from '@tailor/db';
 import {
   AppError,
+  DEFAULT_LAYOUT_VARIANT,
   EXPORT_CONTENT_TYPES,
   EXPORT_FORMATS,
+  isValidLayoutVariant,
+  resolveSectionOrder,
   suggestTemplateId,
   type ExportFormat,
   type JdParsed,
@@ -21,14 +24,15 @@ import {
   type JobStatusView,
   type RenderedResume,
   type ResumeExportFile,
+  type ResumeSection,
   type RetrievedCandidateView,
   type StoredExportFiles,
   type TailoredResumeSummary,
   type TailoredResumeView,
   type TemplateId,
+  type UpdateResumeLayoutInput,
 } from '@tailor/shared-types';
 import { logger } from '../logger.js';
-import { NotImplementedError } from '../common.js';
 import { profileModule } from '../profile/index.js';
 import { getEmbedder } from '../embedding/index.js';
 import { getFileStore } from '../storage/index.js';
@@ -42,12 +46,6 @@ import {
   reconcileGeneratedResume,
   selectKeptCandidates,
 } from './generation.js';
-
-export interface UpdateResumeLayoutInput {
-  sectionOrder: string[];
-  hiddenSections: string[];
-  layoutVariantId?: string;
-}
 
 /** Kebab-case a name for a download filename; empty → falls back at the call site. */
 function slug(s: string): string {
@@ -71,6 +69,9 @@ async function renderAndStoreExports(
     rendered: RenderedResume;
     basics: RenderBasics;
     skills: string[];
+    sectionOrder: ResumeSection[];
+    hiddenSections: ResumeSection[];
+    layoutVariantId: string;
   },
 ): Promise<StoredExportFiles> {
   const renderer = getResumeRenderer();
@@ -83,7 +84,12 @@ async function renderAndStoreExports(
       content: opts.rendered,
       basics: opts.basics,
       skills: opts.skills,
+      sectionOrder: opts.sectionOrder,
+      hiddenSections: opts.hiddenSections,
+      layoutVariantId: opts.layoutVariantId,
     });
+    // Deterministic keys per resume+format, so a Milestone-7 re-render overwrites
+    // the same objects in place (the download URL never changes).
     const key = `resumes/${resumeId}/resume.${format}`;
     const filename = `${slug(opts.basics.fullName) || 'resume'}.${format}`;
     await store.put(key, bytes, EXPORT_CONTENT_TYPES[format]);
@@ -91,6 +97,44 @@ async function renderAndStoreExports(
     files[format] = file;
   }
   return files;
+}
+
+/** The RenderBasics contact block for a user (shared by generate + re-render). */
+async function resumeBasicsFor(userId: string): Promise<RenderBasics> {
+  const basics = await profileModule.getResumeBasics(userId);
+  return {
+    fullName: basics?.fullName ?? '',
+    phone: basics?.phone,
+    location: basics?.location,
+    links: basics?.links,
+  };
+}
+
+/** Shape a TailoredResume row into the API detail view (getResume + updateResumeLayout). */
+function toTailoredResumeView(resume: {
+  id: string;
+  templateId: string;
+  jdParsed: unknown;
+  renderedContent: unknown;
+  sectionOrder: string[];
+  hiddenSections: string[];
+  layoutVariantId: string | null;
+  exportFiles: unknown;
+  createdAt: Date;
+}): TailoredResumeView {
+  const templateId = resume.templateId as TemplateId;
+  const exportFiles = (resume.exportFiles as StoredExportFiles | null) ?? {};
+  return {
+    id: resume.id,
+    templateId,
+    jdParsed: resume.jdParsed as unknown as JdParsed,
+    renderedContent: (resume.renderedContent as unknown as RenderedResume | null) ?? null,
+    sectionOrder: resolveSectionOrder(resume.sectionOrder),
+    hiddenSections: resume.hiddenSections as ResumeSection[],
+    layoutVariantId: resume.layoutVariantId ?? DEFAULT_LAYOUT_VARIANT[templateId],
+    availableFormats: EXPORT_FORMATS.filter((f) => exportFiles[f]),
+    createdAt: resume.createdAt.toISOString(),
+  };
 }
 
 export const resumeEngine = {
@@ -355,19 +399,30 @@ export const resumeEngine = {
         summary: basics?.summary ?? undefined,
       });
 
+      // Candidate skills for the two-column sidebar: the unique tags on the kept
+      // bullets. Carried into renderedContent so a later layout re-render (M7) has
+      // them without the candidates in hand.
+      const skills = Array.from(
+        new Set(candidates.flatMap((c) => c.tags.map((t) => t.trim())).filter(Boolean)),
+      );
+
       const generated = await getResumeGenerator().generate(input);
       const rendered: RenderedResume = reconcileGeneratedResume(
         generated,
         candidates,
         resume.templateId,
         input.maxBullets,
+        skills,
       );
 
       // Render the export files (PDF + DOCX) and store them (ADR-012). The renderer
       // is injected by the worker (react-pdf / docx) — worker-only, so the web
-      // deployable never pulls in the render deps (CLAUDE.md §7).
+      // deployable never pulls in the render deps (CLAUDE.md §7). Layout is the
+      // as-parsed default here (sectionOrder=[] → default order, no hidden sections,
+      // template's default variant); the user tunes it later via updateResumeLayout.
+      const templateId = resume.templateId as TemplateId;
       const exportFiles = await renderAndStoreExports(resume.id, {
-        templateId: resume.templateId as TemplateId,
+        templateId,
         rendered,
         basics: {
           fullName: basics?.fullName ?? '',
@@ -375,10 +430,10 @@ export const resumeEngine = {
           location: basics?.location,
           links: basics?.links,
         },
-        // Candidate skills for the two-column sidebar: the tags on the kept bullets.
-        skills: Array.from(
-          new Set(candidates.flatMap((c) => c.tags.map((t) => t.trim())).filter(Boolean)),
-        ),
+        skills,
+        sectionOrder: resolveSectionOrder(resume.sectionOrder),
+        hiddenSections: resume.hiddenSections as ResumeSection[],
+        layoutVariantId: resume.layoutVariantId ?? DEFAULT_LAYOUT_VARIANT[templateId],
       });
 
       await prisma.$transaction(async (tx) => {
@@ -480,15 +535,7 @@ export const resumeEngine = {
   async getResume(userId: string, resumeId: string): Promise<TailoredResumeView> {
     const resume = await prisma.tailoredResume.findFirst({ where: { id: resumeId, userId } });
     if (!resume) throw new AppError('NOT_FOUND', `Resume ${resumeId} not found.`);
-    const exportFiles = (resume.exportFiles as StoredExportFiles | null) ?? {};
-    return {
-      id: resume.id,
-      templateId: resume.templateId as TemplateId,
-      jdParsed: resume.jdParsed as unknown as JdParsed,
-      renderedContent: (resume.renderedContent as unknown as RenderedResume | null) ?? null,
-      availableFormats: EXPORT_FORMATS.filter((f) => exportFiles[f]),
-      createdAt: resume.createdAt.toISOString(),
-    };
+    return toTailoredResumeView(resume);
   },
 
   /**
@@ -517,8 +564,103 @@ export const resumeEngine = {
     }
     return { bytes, contentType: file.contentType, filename: file.filename };
   },
-  updateResumeLayout(_resumeId: string, _input: UpdateResumeLayoutInput): Promise<never> {
-    throw new NotImplementedError('resumeEngine.updateResumeLayout');
+  /**
+   * Customize a generated resume's layout (PATCH /api/resumes/:id/layout,
+   * Milestone 7). Partial update: reorder/hide sections, switch the layout
+   * variant, or override the template. User-scoped (404). Only valid once the
+   * resume has rendered content (409 otherwise — nothing to lay out). Persists the
+   * new layout and enqueues a re-render (the renderers are worker-only, so the
+   * actual PDF/DOCX regeneration happens in the worker and overwrites the export
+   * files in place). Returns the updated detail view immediately.
+   */
+  async updateResumeLayout(
+    userId: string,
+    resumeId: string,
+    input: UpdateResumeLayoutInput,
+  ): Promise<TailoredResumeView> {
+    const resume = await prisma.tailoredResume.findFirst({ where: { id: resumeId, userId } });
+    if (!resume) throw new AppError('NOT_FOUND', `Resume ${resumeId} not found.`);
+    if (!resume.renderedContent) {
+      throw new AppError(
+        'CONFLICT',
+        `Resume ${resumeId} hasn't been generated yet — there's no layout to change.`,
+      );
+    }
+
+    const templateId: TemplateId = input.templateId ?? (resume.templateId as TemplateId);
+    const templateChanged =
+      input.templateId !== undefined && input.templateId !== resume.templateId;
+    // When switching template without naming a variant, fall back to the new
+    // template's default — the old variant may not exist for the new template.
+    const layoutVariantId =
+      input.layoutVariantId ??
+      (templateChanged
+        ? DEFAULT_LAYOUT_VARIANT[templateId]
+        : (resume.layoutVariantId ?? DEFAULT_LAYOUT_VARIANT[templateId]));
+    if (!isValidLayoutVariant(templateId, layoutVariantId)) {
+      throw new AppError(
+        'VALIDATION_FAILED',
+        `"${layoutVariantId}" is not a valid layout variant for the ${templateId} template.`,
+      );
+    }
+
+    const sectionOrder = input.sectionOrder ?? resume.sectionOrder;
+    const hiddenSections = input.hiddenSections ?? resume.hiddenSections;
+    // Keep renderedContent.templateId in sync so a template override is reflected
+    // in the polled content, not just the export files.
+    const renderedContent = {
+      ...(resume.renderedContent as object),
+      templateId,
+    } as unknown as Prisma.InputJsonValue;
+
+    const updated = await prisma.tailoredResume.update({
+      where: { id: resumeId },
+      data: { templateId, layoutVariantId, sectionOrder, hiddenSections, renderedContent },
+    });
+
+    await getEnqueuer().enqueueRender({ resumeId });
+    logger.info(
+      { resumeId, templateId, layoutVariantId, hidden: hiddenSections.length },
+      'layout updated; re-render enqueued',
+    );
+    return toTailoredResumeView(updated);
+  },
+
+  /**
+   * Re-render a resume's export files after a layout change (invoked by the
+   * worker's renderResume task, Milestone 7). Reads the stored renderedContent +
+   * current layout, re-renders PDF/DOCX via the injected renderer, and overwrites
+   * the export files in place (same FileStore keys). Resume-scoped — no TailoringJob
+   * stage machine (this runs after the pipeline is `done`). A thrown error lets
+   * BullMQ retry the render job.
+   */
+  async runRenderStage(resumeId: string): Promise<void> {
+    const resume = await prisma.tailoredResume.findUnique({ where: { id: resumeId } });
+    if (!resume) throw new AppError('NOT_FOUND', `Resume ${resumeId} not found.`);
+    const rendered = resume.renderedContent as unknown as RenderedResume | null;
+    if (!rendered) {
+      throw new AppError('CONFLICT', `Resume ${resumeId} has no rendered content to re-render.`);
+    }
+
+    const templateId = resume.templateId as TemplateId;
+    const exportFiles = await renderAndStoreExports(resumeId, {
+      templateId,
+      rendered,
+      basics: await resumeBasicsFor(resume.userId),
+      skills: rendered.skills ?? [],
+      sectionOrder: resolveSectionOrder(resume.sectionOrder),
+      hiddenSections: resume.hiddenSections as ResumeSection[],
+      layoutVariantId: resume.layoutVariantId ?? DEFAULT_LAYOUT_VARIANT[templateId],
+    });
+
+    await prisma.tailoredResume.update({
+      where: { id: resumeId },
+      data: { exportFiles: exportFiles as unknown as Prisma.InputJsonValue },
+    });
+    logger.info(
+      { resumeId, formats: Object.keys(exportFiles) },
+      're-render complete; export files replaced in place',
+    );
   },
 };
 

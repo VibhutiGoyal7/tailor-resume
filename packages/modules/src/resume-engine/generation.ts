@@ -54,6 +54,7 @@ export function reconcileGeneratedResume(
   candidates: GenerationCandidate[],
   templateId: string,
   maxBullets: number = MAX_GENERATED_BULLETS,
+  skills: string[] = [],
 ): RenderedResume {
   const byId = new Map(candidates.map((c) => [c.bulletId, c]));
   const seen = new Set<string>();
@@ -70,5 +71,5 @@ export function reconcileGeneratedResume(
     });
     if (bullets.length >= maxBullets) break;
   }
-  return { templateId, summary: generated.summary.trim(), bullets };
+  return { templateId, summary: generated.summary.trim(), bullets, skills };
 }

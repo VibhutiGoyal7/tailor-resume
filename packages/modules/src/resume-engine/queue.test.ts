@@ -11,6 +11,7 @@ describe('enqueuer injection', () => {
       },
       enqueueRetrieve: async () => {},
       enqueueGenerate: async () => {},
+      enqueueRender: async () => {},
     };
     setEnqueuer(fake);
     expect(getEnqueuer()).toBe(fake);
