@@ -1,0 +1,66 @@
+name: CI
+
+# Lint + full test suite on every PR into dev and main (CLAUDE.md Section 2).
+# A red job blocks merge.
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    name: Lint & test
+    runs-on: ubuntu-latest
+
+    # Ephemeral Postgres (with pgvector) so DB-backed integration tests run in CI.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: tailor
+          POSTGRES_PASSWORD: tailor
+          POSTGRES_DB: tailor
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tailor -d tailor"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://tailor:tailor@localhost:5432/tailor?schema=public
+      JWT_SECRET: ci-test-secret
+      RUN_DB_TESTS: '1'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Apply migrations to the test database
+        run: npm run db:migrate:deploy
+
+      - name: Format check (Prettier)
+        run: npm run format:check
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      - name: Test (Vitest, incl. DB integration)
+        run: npm test

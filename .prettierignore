@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+.next
+coverage
+.expo
+packages/db/generated
+package-lock.json
+docs
+screens
+CLAUDE.md

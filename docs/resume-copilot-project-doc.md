@@ -22,6 +22,8 @@
 | Templates | 3 — Clean/ATS-safe, Modern two-column, Compact/dense (ADR-018) |
 | Screens designed | All 25 (Home + 24), full visual design, dusty-denim system |
 | Build brief | Exists — `tailor-build-brief.md` |
+| Build progress | **Milestone 4 (resume-engine, parse stage) built; on branch `feature/resume-engine-parse`, not yet merged.** M1 scaffold + M2 auth + M3 Profile all merged to `dev`. M3: Experience Bank structured-item CRUD, manual bullets + accept/edit/reject, Resume Basics GET/PUT (`ExperienceBullet.embedding` nullable, embeddings land M5). **M4 (this session):** `POST /api/resumes` → BullMQ parse job → worker `parseJD` → persist `jd_parsed` → `GET /api/resumes/jobs/:jobId` polling. JD parser behind `JdParser`; auto-falls back to a **stub canned parse when `ANTHROPIC_API_KEY` is unset** (real Haiku when set — no code change to switch). Enqueuer injectable (no Redis in tests). Parse advances job to `retrieving`; enqueuing retrieve deferred to M5. Google sign-in still deferred (slice 2b, 2026-07-25). Lint/format/**repo-wide typecheck**/test green (116 tests; DB integration via `RUN_DB_TESTS=1`) + live worker+Redis smoke passed. |
+| Repo tooling | npm workspaces · TypeScript · Vitest · ESLint 9 (flat) + Prettier · tsx (worker dev) — see Section 5 |
 | Deploy status | Not live; not deploying imminently (owner's explicit call, Session 4) |
 
 ---
@@ -313,6 +315,15 @@ Async operations expose the same reality as their underlying module contracts �
 | Auth | Self-rolled JWT (argon2 hashing, access+refresh token pair with rotation, rate-limited to 7 attempts) + Resend (transactional email for verification/reset) + **Firebase Auth for Google OAuth handshake only** (backend verifies the Firebase ID token, then issues our own token pair — ADR-010 addendum) | See ADR-010 |
 | Infra | Docker Compose locally; Render or Railway for deploy; GitHub Actions for CI/CD | Dockerizing + CI/CD explicitly scheduled as its own milestone, not skipped, for resume value |
 | Observability | Basic structured logging + one dashboard | Shows production-mindedness |
+| Monorepo tooling | **npm workspaces** (no pnpm/yarn/turborepo) — `apps/*` + `packages/*` (decided, Milestone 1) | Built into npm; no extra tool to justify for a repo this size. `apps/web`, `apps/worker`, `apps/mobile` + `packages/db`, `packages/modules`, `packages/shared-types` |
+| Language / build | **TypeScript** throughout; shared `packages/*` consumed as source (Next `transpilePackages`, worker via `tsx`) (decided, Milestone 1) | Single language across web/worker/mobile/shared code |
+| Testing | **Vitest** (workspace mode, `vitest run` from root), tests colocated as `*.test.ts` (decided, Milestone 1) | Fast, native ESM/TS, one runner across all packages; satisfies ADR-019 |
+| Lint / format | **ESLint 9 flat config** (`typescript-eslint`) + **Prettier**, `no-console` enforced (CLAUDE.md §3) (decided, Milestone 1) | Clean-on-scaffold; CI runs `format:check` + `lint` + `test` on every PR to `dev`/`main` |
+| Worker dev runner | **tsx** (`tsx watch`) for the plain-Node worker (decided, Milestone 1) | Runs the TS worker directly in dev without a separate build step |
+| JWT library | **jose** (HS256 sign/verify) for access tokens (decided, Milestone 2) | Pure-JS, ESM-native, no native build; "self-rolled JWT" per ADR-010 means our own issue/rotate logic, not our own crypto |
+| Request validation | **zod** — schemas in `packages/shared-types`, shared by routes + tests (decided, Milestone 2) | One schema source for validation and inferred TS types |
+| Backend logging | **pino** (structured), shared `logger` in `@tailor/modules` (decided, Milestone 2) | ADR/CLAUDE.md Section 3; child loggers carry requestId/jobId. Log-shipping dashboard still deferred to deploy |
+| Transactional email | **Resend** behind an `EmailSender` interface; dev/no-key fallback logs links instead of sending (decided, Milestone 2) | Verification + password-reset emails; interface keeps the facade testable with a fake sender |
 
 ---
 

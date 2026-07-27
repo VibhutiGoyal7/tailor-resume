@@ -1,0 +1,110 @@
+// Experience Bank route tests. Auth-required checks are DB-free; the full flow
+// is gated on RUN_DB_TESTS=1.
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { prisma } from '@tailor/db';
+import { GET as getBank } from './route';
+import { POST as postItem } from './items/route';
+import { POST as postBullet } from './items/[id]/bullets/route';
+import { PATCH as patchBullet } from './bullets/[id]/route';
+import { GET as getBasics, PUT as putBasics } from './basics/route';
+import { POST as signup } from '../auth/signup/route';
+import { POST as login } from '../auth/login/route';
+
+function req(method: string, body?: unknown, token?: string): Request {
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  if (token) headers.authorization = `Bearer ${token}`;
+  return new Request('http://localhost/api/bank', {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+const p = (id: string) => ({ params: Promise.resolve({ id }) });
+
+describe('bank routes — auth required (no DB)', () => {
+  it('every protected route → 401 without a token', async () => {
+    expect((await getBank(req('GET'))).status).toBe(401);
+    expect((await postItem(req('POST', { type: 'role' }))).status).toBe(401);
+    expect((await postBullet(req('POST', { text: 'x' }), p('id'))).status).toBe(401);
+    expect((await patchBullet(req('PATCH', { status: 'accepted' }), p('id'))).status).toBe(401);
+    expect((await getBasics(req('GET'))).status).toBe(401);
+    expect((await putBasics(req('PUT', { fullName: 'A' }))).status).toBe(401);
+  });
+});
+
+const runDb = process.env.RUN_DB_TESTS === '1';
+
+describe.skipIf(!runDb)('bank routes — full flow (DB)', () => {
+  const email = 'bank-flow@itest.local';
+  const password = 'supersecret1';
+  let token: string;
+
+  async function cleanup(): Promise<void> {
+    const u = await prisma.user.findUnique({ where: { email } });
+    if (!u) return;
+    const items = await prisma.experienceItem.findMany({
+      where: { userId: u.id },
+      select: { id: true },
+    });
+    await prisma.experienceBullet.deleteMany({
+      where: { experienceItemId: { in: items.map((i) => i.id) } },
+    });
+    await prisma.experienceItem.deleteMany({ where: { userId: u.id } });
+    await prisma.resumeBasics.deleteMany({ where: { userId: u.id } });
+    await prisma.refreshToken.deleteMany({ where: { userId: u.id } });
+    await prisma.verificationToken.deleteMany({ where: { userId: u.id } });
+    await prisma.user.delete({ where: { id: u.id } });
+  }
+
+  beforeAll(async () => {
+    if (!process.env.JWT_SECRET) process.env.JWT_SECRET = 'test-jwt-secret';
+    await cleanup();
+    await signup(req('POST', { email, password }));
+    const res = await login(req('POST', { email, password }));
+    token = (await res.json()).accessToken;
+  });
+  afterAll(async () => {
+    await cleanup();
+    await prisma.$disconnect();
+  });
+
+  it('add item → add bullet → get bank → accept/reject bullet', async () => {
+    const itemRes = await postItem(
+      req('POST', { type: 'role', structuredFields: { title: 'Engineer' } }, token),
+    );
+    expect(itemRes.status).toBe(201);
+    const item = await itemRes.json();
+
+    const bulletRes = await postBullet(req('POST', { text: 'Shipped X' }, token), p(item.id));
+    expect(bulletRes.status).toBe(201);
+    const bullet = await bulletRes.json();
+    expect(bullet.status).toBe('accepted');
+
+    const bankRes = await getBank(req('GET', undefined, token));
+    expect(bankRes.status).toBe(200);
+    const bank = await bankRes.json();
+    expect(bank.role).toHaveLength(1);
+    expect(bank.role[0].bullets).toHaveLength(1);
+
+    const patched = await patchBullet(req('PATCH', { status: 'rejected' }, token), p(bullet.id));
+    expect(patched.status).toBe(200);
+    expect((await patched.json()).status).toBe('rejected');
+  });
+
+  it('add item with a missing type → 400', async () => {
+    const res = await postItem(req('POST', { structuredFields: {} }, token));
+    expect(res.status).toBe(400);
+  });
+
+  it('resume basics: null → PUT → GET', async () => {
+    const before = await getBasics(req('GET', undefined, token));
+    expect(await before.json()).toBeNull();
+
+    const put = await putBasics(req('PUT', { fullName: 'Ada Lovelace' }, token));
+    expect(put.status).toBe(200);
+    expect((await put.json()).fullName).toBe('Ada Lovelace');
+
+    const after = await getBasics(req('GET', undefined, token));
+    expect((await after.json()).fullName).toBe('Ada Lovelace');
+  });
+});

@@ -71,15 +71,36 @@ resume-engine    job-ingestion   (job-ingestion not built in Phase 1)
    └── applications ──┘            (not built in Phase 1)
 ```
 
-For Phase 1, only `profile` and `resume-engine` are built. Each is a folder in `packages/modules/` exporting exactly one facade:
+For Phase 1, three modules are built: **`auth`**, `profile`, and `resume-engine`. Each is a folder in `packages/modules/` exporting exactly one facade.
+
+> **`auth` recorded as a Phase-1 module (Milestone 2 decision).** Section 5's "route groups map to module facades" implies an auth facade, but the graph above (inherited from the project doc) predates that and omitted it. Resolving the gap: `auth` is its own module, owning the `User` and `RefreshToken` tables. Every other module deals only in `userId` strings, so the no-cross-module-Prisma rule (CLAUDE.md Section 1) holds — nothing else imports `User`. `auth` has no dependency on `profile`/`resume-engine`; it sits to the side of the graph and is consumed only by the web app's `/api/auth/*` and `/api/account/*` routes.
 
 ```ts
+// packages/modules/auth/index.ts
+export const authModule = {
+  signup(input) { ... },              // -> AuthUser (does not log in; contract: 201; sends verify email)
+  login(input) { ... },               // -> { user, tokens }  (argon2 verify + issue pair)
+  refresh(rawRefreshToken) { ... },   // rotate + reuse-detection (ADR-010)
+  logout(rawRefreshToken) { ... },    // revoke (idempotent)
+  verifyAccessToken(token) { ... },   // -> { userId }  (used by requireAuth middleware)
+  verifyEmail(rawToken) { ... },      // consume email_verify token -> emailVerified = true
+  forgotPassword(email) { ... },      // send reset link (silent for unknown email)
+  resetPassword(rawToken, newPw) { ... }, // consume password_reset token, revoke all sessions
+  getAccount(userId) { ... },         // -> { email, emailVerified, createdAt }
+  changePassword(userId, cur, next) { ... }, // verify current, revoke other sessions
+  deleteAccount(userId) { ... },      // manual cascade over all user-owned rows
+  // slice 2b: googleSignIn(firebaseIdToken)
+};
+
 // packages/modules/profile/index.ts
 export const profileModule = {
-  getExperienceBank(userId) { ... },
-  addExperienceItem(userId, input) { ... },
+  getExperienceBank(userId) { ... },                 // items grouped by type, with bullets
+  addExperienceItem(userId, input) { ... },          // structured item (source "structured_form")
+  addBullet(userId, itemId, input) { ... },          // manual bullet (status "accepted"); M3
+  updateBullet(userId, bulletId, input) { ... },     // accept/edit/reject (PATCH /bank/bullets/:id)
   getResumeBasics(userId) { ... },
-  updateResumeBasics(userId, input) { ... },
+  updateResumeBasics(userId, input) { ... },         // upsert (PUT semantics)
+  // M4: extractBullets(userId, itemId) — LLM (Haiku) freeform extraction
 };
 
 // packages/modules/resume-engine/index.ts
@@ -191,6 +212,24 @@ model RefreshToken {
 
 Note: `TailoringJob` isn't in the original project doc's Section 6 table but is required to make ADR-015 (stage-level polling) and ADR-017 (two-phase confirm) actually implementable — it's the row `GET /resumes/jobs/:jobId` reads.
 
+Note (Milestone 3): `ExperienceBullet.embedding` is now **nullable** (`vector(1024)?`). Bullets are created in Milestone 3, but embeddings (Voyage) are computed in Milestone 5 — so a bullet exists before it's embedded. The original schema had it non-null, which the build order can't satisfy; nullable reconciles it.
+
+Note (Milestone 2, slice 2): added `VerificationToken` — single-use tokens for **email verification** and **password reset**, distinguished by a `type` field (`"email_verify" | "password_reset"`). Stored hashed (sha256) with an `expiresAt` and a nullable `usedAt` (single-use). This is the "token stored server-side with expiry" that Section 6 requires; it wasn't enumerated in the original data model.
+
+```prisma
+model VerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String
+  type      String   // "email_verify" | "password_reset"
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId])
+  @@index([tokenHash])
+}
+```
+
 ---
 
 ## 5. API contracts (REST, ADR-011)
@@ -214,9 +253,10 @@ Rate limit: 7 attempts on `/login` and `/signup` (ADR-010).
 ```
 GET    /api/bank                        → ExperienceItem[] grouped by type
 POST   /api/bank/items                  { type, structuredFields | rawInput } → ExperienceItem
-POST   /api/bank/items/:id/extract      (for freeform/import) → ExperienceBullet[] (status: "suggested")
+POST   /api/bank/items/:id/bullets      { text, tags?, impactMetric? } → ExperienceBullet (status: "accepted")  # manual add (M3)
+POST   /api/bank/items/:id/extract      (for freeform/import) → ExperienceBullet[] (status: "suggested")        # LLM (M4)
 PATCH  /api/bank/bullets/:id             { status, text? } → ExperienceBullet   (accept/edit/reject)
-GET    /api/bank/basics                  → ResumeBasics
+GET    /api/bank/basics                  → ResumeBasics | null
 PUT    /api/bank/basics                  → ResumeBasics
 ```
 
@@ -320,6 +360,15 @@ Three BullMQ queues (or one queue, three job names — either works, but separat
 
 Retry (ADR-015): `POST /resumes/jobs/:jobId/retry` re-enqueues only whichever task matches `failedStage` — reusing the same input the failed attempt had, not restarting from `parseJD`.
 
+### Implementation status — Milestone 4 (parse stage, built this session)
+
+The **parse** stage is implemented end-to-end; retrieve/generate remain scaffolds.
+
+- **Where the logic lives.** All parse logic is in the `resume-engine` facade (`runParseStage`), not the worker. The worker's `parseJD` task is a one-liner that calls the facade (CLAUDE.md §1: business logic in the module, worker tasks thin). The facade also owns `requestTailoredResume` (create `TailoringJob` @ `parsing` + enqueue) and `getJobStatus` (user-scoped poll).
+- **Queue producer.** `resume-engine` is the producer, behind an injectable `Enqueuer` interface (`BullMqEnqueuer` in prod; an in-memory fake in tests). `QUEUE_NAMES` + job payloads live once in `shared-types`; both the producer and `apps/worker` import them (worker's `queues.ts` re-exports them) so names can't drift.
+- **JD parser is behind `JdParser`** with two implementations: `AnthropicJdParser` (Claude Haiku, structured output, per ADR-004) and **`StubJdParser`** (a fixed canned parse). `getJdParser()` **auto-selects**: `AnthropicJdParser` when `ANTHROPIC_API_KEY` is set, otherwise `StubJdParser`. This lets the whole pipeline run and be demoed with **no API key**; adding the key later switches to the real model with zero code change. Canned output lives in one constant (`STUB_JD_PARSED`) — edit it to change the demo data.
+- **Deferred within M4 (intentional):** `runParseStage` persists `jd_parsed` and advances the job to `retrieving`, but does **not** yet enqueue `retrieveCandidates` — that wiring lands in Milestone 5 alongside the retrieve task, so an M4 job cleanly reaches `retrieving` with its parse visible and no failing downstream job. `TailoredResume.templateId` is set to a placeholder `"classic"` until template selection is designed (§10 open items).
+
 ---
 
 ## 8. Design tokens for React Native (locked palette, this session)
@@ -415,4 +464,5 @@ Sourced from existing **open-source** resume template layouts (e.g. JSON Resume 
 
 - Which specific layout *variants* each of the 3 templates gets (e.g. one-column vs. two-column within "Modern two-column") isn't designed yet — needed before milestone 7.
 - Observability specifics (which logging library, whether a real dashboard tool like Axiom/Better Stack is worth it vs. Render/Railway's built-in log viewer) — low priority, deferred to deploy time (milestone 9), no pressure since the project isn't going live imminently.
-- Profile & settings screen's account actions (change password, delete account) now have routes specified (Section 5) but haven't been built or wired into a milestone explicitly — fold into milestone 2 (auth module) rather than treating as a separate pass.
+- Profile & settings screen's account actions (change password, delete account) now have routes specified (Section 5) but haven't been built or wired into a milestone explicitly — fold into milestone 2 (auth module) rather than treating as a separate pass. **(Done — Milestone 2 slice 2.)**
+- **Google sign-in (`POST /api/auth/google`) — deferred, to integrate 2026-07-25 (Milestone 2, slice 2b).** Everything else in Milestone 2's auth module is built and tested (slices 1 + 2 on branch `feature/auth-module`). Google is the only remaining auth piece. Prerequisite the owner must set up first: a **Firebase project** (free) with Google sign-in enabled + a service-account key → fills `FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` (already in `.env.example`). Plan: build the backend route with token verification behind an `IdTokenVerifier` interface (firebase-admin impl) so the facade/route are testable with a fake verifier and CI stays green without real credentials; owner wires the real project when ready. Mobile client config is a separate, later (Milestone 8) concern.
