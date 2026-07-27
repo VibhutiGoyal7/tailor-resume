@@ -1,10 +1,10 @@
-// Stage 2: embed each key_responsibility + required_skill (Voyage), pgvector
-// cosine search per query, union+dedupe, hybrid tag re-rank (ADR-003).
-// On success: stage -> "awaiting_confirmation", store retrievedCandidateIds.
-// Does NOT enqueue generate — waits for POST /confirm (ADR-017).
-// Implemented in Milestone 5.
+// Stage 2 worker task: retrieve candidate bullets for the parsed JD.
+// Thin by design (CLAUDE.md Section 1) — all logic (embed queries, pgvector
+// search via profile, hybrid re-rank, stop at the ADR-017 checkpoint) lives in
+// the resume-engine facade. A thrown error marks the BullMQ job failed.
+import { resumeEngine } from '@tailor/modules';
 import type { RetrieveCandidatesJob } from '../queues.js';
 
-export async function retrieveCandidates(_job: RetrieveCandidatesJob): Promise<void> {
-  throw new Error('retrieveCandidates task is not implemented yet (scaffold).');
+export async function retrieveCandidates(job: RetrieveCandidatesJob): Promise<void> {
+  await resumeEngine.runRetrieveStage(job.jobId);
 }

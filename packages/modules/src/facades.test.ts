@@ -12,7 +12,6 @@ import { resumeEngine } from './resume-engine/index.js';
 
 describe('resumeEngine facade — unbuilt stages still stubbed', () => {
   it.each([
-    ['confirmRetrievedMatches', () => resumeEngine.confirmRetrievedMatches('job1', ['c1'])],
     ['getResume', () => resumeEngine.getResume('r1')],
     [
       'updateResumeLayout',

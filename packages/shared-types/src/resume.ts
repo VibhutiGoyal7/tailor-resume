@@ -34,6 +34,25 @@ export const requestTailoredResumeSchema = z.object({
 });
 export type RequestTailoredResumeInput = z.infer<typeof requestTailoredResumeSchema>;
 
+/** POST /api/resumes/jobs/:jobId/confirm — the ADR-017 checkpoint. */
+export const confirmRetrievedMatchesSchema = z.object({
+  keptCandidateIds: z.array(z.string().min(1)),
+});
+export type ConfirmRetrievedMatchesInput = z.infer<typeof confirmRetrievedMatchesSchema>;
+
+/**
+ * One retrieved Experience Bank bullet, surfaced on the ADR-017 "Here's what we
+ * found" checkpoint so the user can uncheck wrong matches before Generate runs.
+ */
+export interface RetrievedCandidateView {
+  bulletId: string;
+  experienceItemId: string;
+  text: string;
+  tags: string[];
+  /** Final hybrid score (semantic similarity + tag boost, ADR-003). Higher = better. */
+  score: number;
+}
+
 /** GET /api/resumes/jobs/:jobId (build brief Section 5, ADR-015). */
 export interface JobStatusView {
   jobId: string;
@@ -41,6 +60,27 @@ export interface JobStatusView {
   failedStage: string | null;
   /** Present once parsing has completed. */
   jdParsed: JdParsed | null;
+  /** Present once retrieval has completed (stage `awaiting_confirmation`+). */
+  retrievedCandidates: RetrievedCandidateView[] | null;
+}
+
+// --- Embeddings (ADR-003: Voyage voyage-4 family, pgvector) ---
+
+/** Dimensionality of the stored bullet/query embeddings — matches schema vector(1024). */
+export const EMBEDDING_DIMENSIONS = 1024;
+
+/**
+ * One bullet returned by profile's pgvector similarity search, crossing the
+ * profile→resume-engine facade boundary (profile owns the table; resume-engine
+ * re-ranks + unions these). `distance` is pgvector cosine distance (0 = identical,
+ * 2 = opposite); semantic similarity = 1 - distance.
+ */
+export interface BulletVectorMatch {
+  bulletId: string;
+  experienceItemId: string;
+  text: string;
+  tags: string[];
+  distance: number;
 }
 
 // --- Worker queues (build brief Section 7) ---

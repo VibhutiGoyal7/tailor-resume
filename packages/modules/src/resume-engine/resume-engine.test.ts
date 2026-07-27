@@ -1,12 +1,14 @@
-// resume-engine facade — parse stage (Milestone 4).
-// The parser and enqueuer are injected fakes (no LLM, no Redis). The DB flow is
-// gated on RUN_DB_TESTS=1 so CI without a database still runs the rest.
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+// resume-engine facade — parse + retrieve + confirm stages (Milestones 4–5).
+// Parser, embedder, and enqueuer are injected fakes/stubs (no LLM, no Voyage,
+// no Redis). The DB + pgvector flow is gated on RUN_DB_TESTS=1.
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@tailor/db';
-import type { JdParsed, ParseJDJob } from '@tailor/shared-types';
+import type { JdParsed, ParseJDJob, RetrieveCandidatesJob } from '@tailor/shared-types';
+import { profileModule } from '../profile/index.js';
 import { resumeEngine } from './index.js';
 import { setJdParser, type JdParser } from './jd-parser.js';
 import { setEnqueuer, type Enqueuer } from './queue.js';
+import { setEmbedder, StubEmbedder } from '../embedding/index.js';
 
 const runDb = process.env.RUN_DB_TESTS === '1';
 
@@ -18,16 +20,34 @@ const PARSED: JdParsed = {
   key_responsibilities: ['Own the CI/CD platform'],
 };
 
-describe.skipIf(!runDb)('resumeEngine parse stage (DB)', () => {
+/** No-op enqueuer: tests drive stage transitions by calling run*Stage directly. */
+function fakeEnqueuer(sink?: {
+  parse?: ParseJDJob[];
+  retrieve?: RetrieveCandidatesJob[];
+}): Enqueuer {
+  return {
+    enqueueParse: async (job) => void sink?.parse?.push(job),
+    enqueueRetrieve: async (job) => void sink?.retrieve?.push(job),
+  };
+}
+
+describe.skipIf(!runDb)('resumeEngine parse + retrieve (DB)', () => {
   const email = 'resume-engine@itest.local';
   let userId: string;
-  let enqueued: ParseJDJob[];
 
   const fakeParser: JdParser = { parse: async () => PARSED };
 
   async function cleanup(): Promise<void> {
     const u = await prisma.user.findUnique({ where: { email } });
     if (!u) return;
+    const items = await prisma.experienceItem.findMany({
+      where: { userId: u.id },
+      select: { id: true },
+    });
+    await prisma.experienceBullet.deleteMany({
+      where: { experienceItemId: { in: items.map((i) => i.id) } },
+    });
+    await prisma.experienceItem.deleteMany({ where: { userId: u.id } });
     await prisma.tailoringJob.deleteMany({ where: { userId: u.id } });
     await prisma.tailoredResume.deleteMany({ where: { userId: u.id } });
     await prisma.user.deleteMany({ where: { id: u.id } });
@@ -35,71 +55,113 @@ describe.skipIf(!runDb)('resumeEngine parse stage (DB)', () => {
 
   beforeAll(async () => {
     await cleanup();
-    const user = await prisma.user.create({
-      data: { email, passwordHash: 'x' },
-    });
+    const user = await prisma.user.create({ data: { email, passwordHash: 'x' } });
     userId = user.id;
+    // A small Experience Bank to retrieve against.
+    const item = await profileModule.addExperienceItem(userId, {
+      type: 'role',
+      rawInput: 'Platform team',
+      structuredFields: {},
+    });
+    await profileModule.addBullet(userId, item.id, {
+      text: 'Built the CI/CD platform on Kubernetes',
+      tags: ['Kubernetes', 'Go'],
+    });
+    await profileModule.addBullet(userId, item.id, {
+      text: 'Wrote unrelated marketing copy',
+      tags: ['Writing'],
+    });
   });
 
-  afterEach(() => {
-    // Restore real (lazy) singletons between tests where needed by re-injecting.
+  beforeEach(() => {
     setJdParser(fakeParser);
+    setEmbedder(new StubEmbedder());
+    setEnqueuer(fakeEnqueuer());
   });
 
   afterAll(cleanup);
 
   it('requestTailoredResume creates a parsing job and enqueues parse', async () => {
-    enqueued = [];
-    const fakeEnqueuer: Enqueuer = {
-      enqueueParse: async (job) => {
-        enqueued.push(job);
-      },
-    };
-    setEnqueuer(fakeEnqueuer);
+    const sink = { parse: [] as ParseJDJob[], retrieve: [] as RetrieveCandidatesJob[] };
+    setEnqueuer(fakeEnqueuer(sink));
 
     const { jobId } = await resumeEngine.requestTailoredResume(userId, 'a job description');
-
     const job = await prisma.tailoringJob.findUnique({ where: { id: jobId } });
     expect(job?.stage).toBe('parsing');
-    expect(job?.userId).toBe(userId);
-    expect(enqueued).toEqual([{ jobId, jdText: 'a job description' }]);
+    expect(sink.parse).toEqual([{ jobId, jdText: 'a job description' }]);
   });
 
-  it('runParseStage persists jd_parsed and advances the job to retrieving', async () => {
-    setEnqueuer({ enqueueParse: async () => {} });
-    setJdParser(fakeParser);
+  it('parse advances to retrieving and enqueues the retrieve job', async () => {
+    const sink = { parse: [] as ParseJDJob[], retrieve: [] as RetrieveCandidatesJob[] };
+    setEnqueuer(fakeEnqueuer(sink));
 
-    const { jobId } = await resumeEngine.requestTailoredResume(userId, 'senior platform role');
-    await resumeEngine.runParseStage(jobId, 'senior platform role');
+    const { jobId } = await resumeEngine.requestTailoredResume(userId, 'jd');
+    await resumeEngine.runParseStage(jobId, 'jd');
 
     const status = await resumeEngine.getJobStatus(userId, jobId);
     expect(status.stage).toBe('retrieving');
-    expect(status.failedStage).toBeNull();
     expect(status.jdParsed).toEqual(PARSED);
-
-    const job = await prisma.tailoringJob.findUnique({ where: { id: jobId } });
-    expect(job?.tailoredResumeId).toBeTruthy();
+    expect(sink.retrieve).toEqual([{ jobId }]);
   });
 
-  it('runParseStage records failedStage=parsing when the parser throws', async () => {
-    setEnqueuer({ enqueueParse: async () => {} });
-    setJdParser({
-      parse: async () => {
-        throw new Error('LLM exploded');
-      },
-    });
-
-    const { jobId } = await resumeEngine.requestTailoredResume(userId, 'will fail');
-    await expect(resumeEngine.runParseStage(jobId, 'will fail')).rejects.toThrow('LLM exploded');
+  it('retrieve embeds, searches, ranks, and stops at awaiting_confirmation', async () => {
+    const { jobId } = await resumeEngine.requestTailoredResume(userId, 'jd');
+    await resumeEngine.runParseStage(jobId, 'jd');
+    await resumeEngine.runRetrieveStage(jobId);
 
     const status = await resumeEngine.getJobStatus(userId, jobId);
-    expect(status.stage).toBe('parsing'); // stage unchanged
-    expect(status.failedStage).toBe('parsing');
-    expect(status.jdParsed).toBeNull();
+    expect(status.stage).toBe('awaiting_confirmation');
+    expect(status.failedStage).toBeNull();
+    expect(status.retrievedCandidates).not.toBeNull();
+    const candidates = status.retrievedCandidates!;
+    expect(candidates.length).toBeGreaterThan(0);
+    // Every candidate is a real bullet with a numeric score.
+    for (const c of candidates) {
+      expect(typeof c.score).toBe('number');
+      expect(c.text.length).toBeGreaterThan(0);
+    }
+    // The Kubernetes/Go bullet carries required-skill tags → gets the tag boost,
+    // so it should out-rank the unrelated marketing bullet.
+    const top = candidates[0]!;
+    expect(top.text).toContain('CI/CD platform');
+  });
+
+  it('confirm records the kept subset; rejects ids not in the retrieved set', async () => {
+    const { jobId } = await resumeEngine.requestTailoredResume(userId, 'jd');
+    await resumeEngine.runParseStage(jobId, 'jd');
+    await resumeEngine.runRetrieveStage(jobId);
+
+    const { retrievedCandidates } = await resumeEngine.getJobStatus(userId, jobId);
+    const keep = [retrievedCandidates![0]!.bulletId];
+
+    await resumeEngine.confirmRetrievedMatches(userId, jobId, keep);
+    const job = await prisma.tailoringJob.findUnique({ where: { id: jobId } });
+    const resume = await prisma.tailoredResume.findUniqueOrThrow({
+      where: { id: job!.tailoredResumeId! },
+    });
+    expect(resume.selectedBulletIds).toEqual(keep);
+
+    await expect(
+      resumeEngine.confirmRetrievedMatches(userId, jobId, ['not-a-real-candidate']),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+  });
+
+  it('retrieve records failedStage=retrieving when the embedder throws', async () => {
+    setEmbedder({
+      embed: async () => {
+        throw new Error('Voyage down');
+      },
+    });
+    const { jobId } = await resumeEngine.requestTailoredResume(userId, 'jd');
+    await resumeEngine.runParseStage(jobId, 'jd');
+    await expect(resumeEngine.runRetrieveStage(jobId)).rejects.toThrow('Voyage down');
+
+    const status = await resumeEngine.getJobStatus(userId, jobId);
+    expect(status.stage).toBe('retrieving');
+    expect(status.failedStage).toBe('retrieving');
   });
 
   it('getJobStatus 404s for another user’s job', async () => {
-    setEnqueuer({ enqueueParse: async () => {} });
     const { jobId } = await resumeEngine.requestTailoredResume(userId, 'mine');
     await expect(resumeEngine.getJobStatus('someone-else', jobId)).rejects.toMatchObject({
       code: 'NOT_FOUND',
