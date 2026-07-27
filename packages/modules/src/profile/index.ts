@@ -5,7 +5,7 @@
 // Milestone 3: structured item CRUD, manual bullets + accept/edit/reject, and
 // Resume Basics. LLM freeform extraction (POST /items/:id/extract) and bullet
 // embeddings (Voyage) land with Milestones 4–5.
-import { prisma, type ExperienceItem, type ExperienceBullet } from '@tailor/db';
+import { prisma, Prisma, type ExperienceItem, type ExperienceBullet } from '@tailor/db';
 import {
   AppError,
   EXPERIENCE_TYPES,
@@ -76,7 +76,7 @@ export const profileModule = {
         type: input.type,
         source: 'structured_form',
         rawInput: input.rawInput,
-        structuredFields: input.structuredFields,
+        structuredFields: input.structuredFields as Prisma.InputJsonValue,
       },
       include: { bullets: true },
     });
@@ -150,7 +150,7 @@ export const profileModule = {
       fullName: input.fullName,
       phone: input.phone ?? null,
       location: input.location ?? null,
-      links: input.links,
+      links: input.links as Prisma.InputJsonValue,
       summary: input.summary ?? null,
     };
     const basics = await prisma.resumeBasics.upsert({
