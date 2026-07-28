@@ -1,8 +1,9 @@
-// Labeled text input primitive. Pulls all styling from tokens (CLAUDE.md §5).
-// `errorText` shows a per-field validation hint under the field (used with the
-// backend's `fields[]` on VALIDATION_FAILED).
+// Labeled text input, styled to the designs (screens/*.svg): a small secondary
+// label above a white field with a hairline border and rounded corners. All
+// styling from tokens (CLAUDE.md §5). `errorText` shows a per-field hint under the
+// field (used with the backend's `fields[]` on VALIDATION_FAILED).
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
-import { colors, radii, spacing, typography } from '../theme/tokens';
+import { colors, radii, spacing, typography } from '../../theme/tokens';
 
 interface TextFieldProps extends TextInputProps {
   label: string;
@@ -40,7 +41,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     ...typography.body,
     color: colors.ink,
-    backgroundColor: colors.background,
+    backgroundColor: colors.fieldBg,
   },
   inputError: {
     borderColor: colors.accent,

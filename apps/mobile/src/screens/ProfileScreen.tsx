@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
-import { Button } from '../components/Button';
+import { Button } from '../components/ui/Button';
 import { ErrorDialog } from '../components/ErrorDialog';
 import { useAuth } from '../auth/AuthContext';
 import { errorToCopy, type ErrorCopy } from '../errors/errorCopy';

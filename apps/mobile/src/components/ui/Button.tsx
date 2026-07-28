@@ -1,8 +1,8 @@
-// Primary/secondary button primitive. All buttons pull color/spacing/radius from
-// tokens (CLAUDE.md §5) — never hardcoded here. `loading` shows a spinner and
-// disables the press; `variant` switches the accent fill vs. an outline.
+// Primary/secondary button. Pulls color/spacing from tokens (CLAUDE.md §5) and
+// uses the design's asymmetric corner radii (§9b — opposite corners rounded vs.
+// tight, `26 10 26 10`, not a uniform pill) so CTAs carry the app's shape language.
 import { ActivityIndicator, Pressable, StyleSheet, Text, type ViewStyle } from 'react-native';
-import { colors, radii, spacing, typography } from '../theme/tokens';
+import { colors, radii, spacing, typography } from '../../theme/tokens';
 
 interface ButtonProps {
   label: string;
@@ -49,11 +49,12 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    height: 48,
+    height: 52,
     paddingHorizontal: spacing.xl,
-    borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
+    // Asymmetric radii — the app's shape language (§9b).
+    ...radii.card,
   },
   primary: {
     backgroundColor: colors.accent,
@@ -67,10 +68,11 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.45,
   },
   label: {
     ...typography.bodyStrong,
+    fontSize: 16,
   },
   labelPrimary: {
     color: colors.background,

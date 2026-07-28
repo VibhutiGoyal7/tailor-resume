@@ -5,7 +5,7 @@
 import { Modal, StyleSheet, Text, View } from 'react-native';
 import { colors, radii, spacing, typography } from '../theme/tokens';
 import type { ErrorCopy } from '../errors/errorCopy';
-import { Button } from './Button';
+import { Button } from './ui/Button';
 
 interface ErrorDialogProps {
   /** The resolved copy to show; when null the dialog is hidden. */

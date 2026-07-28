@@ -3,8 +3,7 @@
 // gated by auth status in RootNavigator (build brief / project doc §: "bottom
 // navigation, 4 tabs sitting on top of an auth stack that exists outside the nav").
 export type AuthStackParamList = {
-  Login: undefined;
-  Signup: undefined;
+  Auth: undefined;
 };
 
 export type AppTabsParamList = {

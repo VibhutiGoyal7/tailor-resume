@@ -14,6 +14,10 @@ export const colors = {
   ink: '#1D2226', // primary text
   textSecondary: '#7B8681', // muted labels/timestamps
   iconMuted: '#A9B2B6', // inactive nav icons
+  ambientDot2: '#DCE5E8', // floating decorative dots (variants, project doc §9b)
+  ambientDot3: '#CBD8DC',
+  fieldBg: '#FFFFFF', // input / white card fill (on the off-white background)
+  accentInactive: '#4A5F6B', // muted denim — inactive segment label (per designs)
 } as const;
 
 export type ColorToken = keyof typeof colors;
