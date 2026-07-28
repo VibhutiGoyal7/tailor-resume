@@ -35,3 +35,14 @@ export async function clearTokens(): Promise<void> {
   ]);
   logger.info('cleared stored tokens');
 }
+
+// First-run choice (ADR-016) is shown once per device after the first login.
+const FIRST_RUN_KEY = 'tailor.firstRunComplete';
+
+export async function isFirstRunComplete(): Promise<boolean> {
+  return (await SecureStore.getItemAsync(FIRST_RUN_KEY)) === '1';
+}
+
+export async function setFirstRunComplete(): Promise<void> {
+  await SecureStore.setItemAsync(FIRST_RUN_KEY, '1');
+}

@@ -2,9 +2,10 @@
 // logo header, a Create account | Log in segmented toggle, Continue with Google,
 // an "or use email" divider, email + password fields, and the primary CTA — all on
 // the ambient background. Copy follows the design's conversational tone (§9b).
-// Auth plumbing is the same AuthContext as before; only the presentation is to spec.
+// Auth plumbing is the same AuthContext; only presentation is to spec.
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ScreenContainer } from '../../components/ScreenContainer';
 import { LogoHeader } from '../../components/brand/LogoHeader';
 import { SegmentedControl } from '../../components/ui/SegmentedControl';
@@ -17,10 +18,11 @@ import { useAuth } from '../../auth/AuthContext';
 import { errorToCopy, type ErrorCopy } from '../../errors/errorCopy';
 import { logger } from '../../lib/logger';
 import { colors, spacing, typography } from '../../theme/tokens';
+import type { AuthMode, AuthStackParamList } from '../../navigation/types';
 
-type Mode = 'signup' | 'login';
+type Props = NativeStackScreenProps<AuthStackParamList, 'Auth'>;
 
-const COPY: Record<Mode, { title: string; subtitle: string; cta: string }> = {
+const COPY: Record<AuthMode, { title: string; subtitle: string; cta: string }> = {
   signup: {
     title: "Let's get you set up",
     subtitle: 'Your experience bank starts here.',
@@ -33,21 +35,20 @@ const COPY: Record<Mode, { title: string; subtitle: string; cta: string }> = {
   },
 };
 
-export function AuthScreen() {
+export function AuthScreen({ navigation, route }: Props) {
   const { signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<Mode>('signup');
+  const [mode, setMode] = useState<AuthMode>(route.params?.mode ?? 'signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<ErrorCopy | null>(null);
-  const [signedUp, setSignedUp] = useState(false);
 
   const onSubmit = async () => {
     setBusy(true);
     try {
       if (mode === 'signup') {
         await signUp(email.trim(), password);
-        setSignedUp(true);
+        navigation.navigate('VerifyEmail', { email: email.trim() });
       } else {
         await signIn(email.trim(), password);
       }
@@ -70,34 +71,13 @@ export function AuthScreen() {
     (mode === 'login' ? password.length > 0 : password.length >= 8) &&
     !busy;
 
-  if (signedUp) {
-    return (
-      <ScreenContainer center>
-        <LogoHeader />
-        <View style={styles.confirm}>
-          <Text style={styles.title}>Check your email</Text>
-          <Text style={styles.subtitle}>
-            We sent a verification link to {email.trim()}. Verify it, then log in.
-          </Text>
-        </View>
-        <Button
-          label="Back to log in"
-          onPress={() => {
-            setSignedUp(false);
-            setMode('login');
-          }}
-        />
-      </ScreenContainer>
-    );
-  }
-
   const copy = COPY[mode];
 
   return (
     <ScreenContainer scroll>
-      <LogoHeader />
+      <LogoHeader onBack={() => navigation.goBack()} />
 
-      <SegmentedControl<Mode>
+      <SegmentedControl<AuthMode>
         options={[
           { key: 'signup', label: 'Create account' },
           { key: 'login', label: 'Log in' },
@@ -136,16 +116,17 @@ export function AuthScreen() {
       />
       {mode === 'signup' ? (
         <Text style={styles.helper}>At least 8 characters, one number.</Text>
-      ) : null}
+      ) : (
+        <Text style={styles.forgot} onPress={() => navigation.navigate('ForgotPassword')}>
+          Forgot password?
+        </Text>
+      )}
 
       <View style={styles.ctaWrap}>
         <Button label={copy.cta} onPress={onSubmit} loading={busy} disabled={!canSubmit} />
       </View>
 
-      <Text
-        style={styles.footer}
-        onPress={() => setMode(mode === 'signup' ? 'login' : 'signup')}
-      >
+      <Text style={styles.footer} onPress={() => setMode(mode === 'signup' ? 'login' : 'signup')}>
         {mode === 'signup' ? 'Already have an account? ' : 'New here? '}
         <Text style={styles.footerLink}>{mode === 'signup' ? 'Log in' : 'Create account'}</Text>
       </Text>
@@ -156,41 +137,28 @@ export function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  title: {
-    ...typography.title,
-    fontSize: 20,
-    color: colors.ink,
-    marginTop: spacing.xl,
-  },
-  subtitle: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  googleWrap: {
-    marginTop: spacing.lg,
-  },
+  title: { ...typography.title, fontSize: 20, color: colors.ink, marginTop: spacing.xl },
+  subtitle: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs },
+  googleWrap: { marginTop: spacing.lg },
   helper: {
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: -spacing.sm,
     marginBottom: spacing.sm,
   },
-  ctaWrap: {
-    marginTop: spacing.md,
+  forgot: {
+    ...typography.caption,
+    color: colors.accent,
+    marginTop: -spacing.sm,
+    marginBottom: spacing.sm,
+    alignSelf: 'flex-end',
   },
+  ctaWrap: { marginTop: spacing.md },
   footer: {
     ...typography.body,
     color: colors.accentInactive,
     textAlign: 'center',
     marginTop: spacing.xl,
   },
-  footerLink: {
-    ...typography.bodyStrong,
-    color: colors.accent,
-  },
-  confirm: {
-    alignItems: 'center',
-    marginVertical: spacing.xxl,
-  },
+  footerLink: { ...typography.bodyStrong, color: colors.accent },
 });

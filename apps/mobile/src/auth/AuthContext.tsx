@@ -9,25 +9,39 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
   type ReactNode,
 } from 'react';
 import { registerAuthBridge } from '../api/client';
 import * as authApi from '../api/auth';
-import { clearTokens, loadTokens, saveTokens, type StoredTokens } from '../api/tokenStore';
+import {
+  clearTokens,
+  isFirstRunComplete,
+  loadTokens,
+  saveTokens,
+  setFirstRunComplete,
+  type StoredTokens,
+} from '../api/tokenStore';
 import { logger } from '../lib/logger';
 import { authReducer, initialAuthState, type AuthStatus } from './authReducer';
 
+export type FirstRunChoice = 'upload' | 'scratch';
+
 interface AuthContextValue {
   status: AuthStatus;
+  /** False until the one-time first-run choice has been made (ADR-016). */
+  firstRunComplete: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  completeFirstRun: (choice: FirstRunChoice) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(authReducer, initialAuthState);
+  const [firstRunComplete, setFirstRun] = useState(false);
   // The client's auth bridge needs the *current* tokens synchronously; a ref
   // mirrors state so the registered callbacks always read the latest value.
   const tokensRef = useRef<StoredTokens | null>(null);
@@ -51,10 +65,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // Bootstrap the session from the secure store on launch.
+  // Bootstrap the session + first-run flag from the secure store on launch.
   useEffect(() => {
     void (async () => {
-      const tokens = await loadTokens();
+      const [tokens, firstRun] = await Promise.all([loadTokens(), isFirstRunComplete()]);
+      setFirstRun(firstRun);
       dispatch({ type: 'bootstrapped', tokens });
       logger.info('auth bootstrapped', { authenticated: tokens !== null });
     })();
@@ -63,6 +78,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       status: state.status,
+      firstRunComplete,
+      completeFirstRun: (choice) => {
+        void setFirstRunComplete();
+        setFirstRun(true);
+        logger.info('first-run choice made', { choice });
+      },
       signIn: async (email, password) => {
         const tokens = await authApi.login(email, password);
         await saveTokens(tokens);
@@ -90,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logger.info('signed out');
       },
     }),
-    [state.status],
+    [state.status, firstRunComplete],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
