@@ -18,6 +18,12 @@ export const colors = {
   ambientDot3: '#CBD8DC',
   fieldBg: '#FFFFFF', // input / white card fill (on the off-white background)
   accentInactive: '#4A5F6B', // muted denim — inactive segment label (per designs)
+  // Destructive red — NOT in the build brief §8 locked palette, but used
+  // consistently across the finalized designs for destructive actions (delete
+  // item, delete account: screens/tailor_screen_item_detail.svg etc.). Added here
+  // so those actions pull from tokens rather than hardcoding. Flagged for the owner.
+  danger: '#E24B4A', // destructive border / fill
+  dangerText: '#A32D2D', // destructive label on a light background
 } as const;
 
 export type ColorToken = keyof typeof colors;

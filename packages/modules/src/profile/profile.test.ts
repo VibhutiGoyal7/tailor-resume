@@ -90,6 +90,30 @@ describe.skipIf(!runDb)('profileModule (DB integration)', () => {
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
+  it('deleteExperienceItem removes the item and its bullets', async () => {
+    const item = await role();
+    await profileModule.addBullet(userId, item.id, { text: 'a bullet', tags: [] });
+    await profileModule.deleteExperienceItem(userId, item.id);
+
+    const bank = await profileModule.getExperienceBank(userId);
+    expect(bank.role).toHaveLength(0);
+    const orphanBullets = await prisma.experienceBullet.findMany({
+      where: { experienceItemId: item.id },
+    });
+    expect(orphanBullets).toHaveLength(0);
+  });
+
+  it("deleteExperienceItem on another user's item → NOT_FOUND", async () => {
+    const item = await profileModule.addExperienceItem(otherUserId, {
+      type: 'role',
+      structuredFields: {},
+      rawInput: '',
+    });
+    await expect(profileModule.deleteExperienceItem(userId, item.id)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
   it('updateBullet: edit changes text, reject keeps text', async () => {
     const item = await role();
     const b = await profileModule.addBullet(userId, item.id, { text: 'orig', tags: [] });

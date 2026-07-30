@@ -5,6 +5,7 @@ import { prisma } from '@tailor/db';
 import { GET as getBank } from './route';
 import { POST as postItem } from './items/route';
 import { POST as postBullet } from './items/[id]/bullets/route';
+import { DELETE as deleteItem } from './items/[id]/route';
 import { PATCH as patchBullet } from './bullets/[id]/route';
 import { GET as getBasics, PUT as putBasics } from './basics/route';
 import { POST as signup } from '../auth/signup/route';
@@ -27,6 +28,7 @@ describe('bank routes — auth required (no DB)', () => {
     expect((await postItem(req('POST', { type: 'role' }))).status).toBe(401);
     expect((await postBullet(req('POST', { text: 'x' }), p('id'))).status).toBe(401);
     expect((await patchBullet(req('PATCH', { status: 'accepted' }), p('id'))).status).toBe(401);
+    expect((await deleteItem(req('DELETE'), p('id'))).status).toBe(401);
     expect((await getBasics(req('GET'))).status).toBe(401);
     expect((await putBasics(req('PUT', { fullName: 'A' }))).status).toBe(401);
   });
@@ -89,6 +91,22 @@ describe.skipIf(!runDb)('bank routes — full flow (DB)', () => {
     const patched = await patchBullet(req('PATCH', { status: 'rejected' }, token), p(bullet.id));
     expect(patched.status).toBe(200);
     expect((await patched.json()).status).toBe('rejected');
+  });
+
+  it('delete item → 204, and it disappears from the bank', async () => {
+    const itemRes = await postItem(req('POST', { type: 'project' }, token));
+    const item = await itemRes.json();
+    await postBullet(req('POST', { text: 'a bullet' }, token), p(item.id));
+
+    const del = await deleteItem(req('DELETE', undefined, token), p(item.id));
+    expect(del.status).toBe(204);
+
+    const bank = await (await getBank(req('GET', undefined, token))).json();
+    expect(bank.project.find((i: { id: string }) => i.id === item.id)).toBeUndefined();
+
+    // Deleting again → 404 (already gone / not the user's).
+    const again = await deleteItem(req('DELETE', undefined, token), p(item.id));
+    expect(again.status).toBe(404);
   });
 
   it('add item with a missing type → 400', async () => {

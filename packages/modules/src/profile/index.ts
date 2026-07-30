@@ -128,6 +128,25 @@ export const profileModule = {
     return toBulletView(updated);
   },
 
+  /**
+   * Delete an Experience Bank item and its bullets (DELETE /bank/items/:id).
+   * User-scoped (404 for a missing or others' item). The bullet→item relation
+   * has no DB-level cascade, so bullets are removed first in the same
+   * transaction (this also clears their pgvector embeddings with the rows).
+   */
+  async deleteExperienceItem(userId: string, itemId: string): Promise<void> {
+    const item = await prisma.experienceItem.findFirst({
+      where: { id: itemId, userId },
+      select: { id: true },
+    });
+    if (!item) throw new AppError('NOT_FOUND', 'Experience item not found.');
+
+    await prisma.$transaction([
+      prisma.experienceBullet.deleteMany({ where: { experienceItemId: itemId } }),
+      prisma.experienceItem.delete({ where: { id: itemId } }),
+    ]);
+  },
+
   /** The user's Resume Basics, or null if never set. */
   async getResumeBasics(userId: string): Promise<ResumeBasicsView | null> {
     const basics = await prisma.resumeBasics.findUnique({ where: { userId } });

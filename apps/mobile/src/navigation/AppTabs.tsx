@@ -4,7 +4,7 @@
 // the tab glyphs come from TabIcon (ported from screens/*.svg).
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { HomeScreen } from '../screens/HomeScreen';
-import { BankScreen } from '../screens/BankScreen';
+import { BankStack } from './BankStack';
 import { ResumesScreen } from '../screens/ResumesScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { colors, typography } from '../theme/tokens';
@@ -26,7 +26,7 @@ export function AppTabs() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Bank" component={BankScreen} options={{ tabBarLabel: 'Bank' }} />
+      <Tab.Screen name="Bank" component={BankStack} options={{ tabBarLabel: 'Bank' }} />
       <Tab.Screen name="Resumes" component={ResumesScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
