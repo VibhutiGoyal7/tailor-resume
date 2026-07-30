@@ -250,6 +250,11 @@ describe.skipIf(!runDb)('resumeEngine parse + retrieve (DB)', () => {
     const detail = await resumeEngine.getResume(userId, job!.tailoredResumeId!);
     expect(detail.availableFormats.sort()).toEqual(['docx', 'pdf']);
     expect(detail.templateId).toBe('modern');
+    // A match score (0–100) was computed at generate and persisted (kept == all
+    // retrieved here, so it's non-null and in range).
+    expect(detail.matchScore).not.toBeNull();
+    expect(detail.matchScore!).toBeGreaterThanOrEqual(0);
+    expect(detail.matchScore!).toBeLessThanOrEqual(100);
 
     // Export returns the stored bytes for a format.
     const pdf = await resumeEngine.getResumeExport(userId, job!.tailoredResumeId!, 'pdf');

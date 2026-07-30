@@ -2,14 +2,9 @@
 // A time-of-day greeting + name, a dark denim "start tailoring" CTA card carrying
 // the paper-airplane motif (§9b: "sending an application, tailoring in motion"),
 // then the recent-history list ("Where you've sent yourself lately") with the
-// design's slightly-rotated white cards. Empty history shows the dog-eared-page
-// motif (§9b neutral empty state).
-//
-// NOTE (design ↔ contract gap, CLAUDE.md §8): the design's history cards show a
-// numeric match-score badge, but TailoredResumeSummary carries no score (no match
-// score is persisted on TailoredResume today). Rather than invent a number the
-// owner would trust, the badge is omitted here and flagged for a decision — add a
-// computed match score to the pipeline + summary DTO, or drop the badge.
+// design's slightly-rotated white cards, each carrying the compact match-score
+// badge (§9b: the RAG pipeline's signature output). Empty history shows the
+// dog-eared-page motif (§9b neutral empty state).
 import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
@@ -224,13 +219,36 @@ function RecentCard({
         pressed ? styles.pressed : null,
       ]}
     >
-      <Text style={styles.cardTitle} numberOfLines={1}>
-        {summary.roleType}
-      </Text>
-      <Text style={styles.cardMeta} numberOfLines={1}>
-        {summary.companyType} · {relativeTime(summary.createdAt)}
-      </Text>
+      <View style={styles.cardText}>
+        <Text style={styles.cardTitle} numberOfLines={1}>
+          {summary.roleType}
+        </Text>
+        <Text style={styles.cardMeta} numberOfLines={1}>
+          {summary.companyType} · {relativeTime(summary.createdAt)}
+        </Text>
+      </View>
+      {summary.matchScore !== null ? (
+        <MatchBadge score={summary.matchScore} tiltRight={index % 2 === 0} />
+      ) : null}
     </Pressable>
+  );
+}
+
+// The compact match-score badge (design lines 46-49): a small badge-tint square
+// with the app's asymmetric radii, tilted slightly, denim number centered. Only
+// shown when a score exists (older resumes, generated before match scoring, have
+// none).
+function MatchBadge({ score, tiltRight }: { score: number; tiltRight: boolean }) {
+  return (
+    <View
+      style={[
+        styles.badge,
+        tiltRight ? styles.badgeRadiusA : styles.badgeRadiusB,
+        { transform: [{ rotate: tiltRight ? '4deg' : '-3deg' }] },
+      ]}
+    >
+      <Text style={styles.badgeText}>{score}</Text>
+    </View>
   );
 }
 
@@ -275,14 +293,39 @@ const styles = StyleSheet.create({
 
   list: { gap: spacing.md },
   card: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.fieldBg,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
+  cardText: { flex: 1, marginRight: spacing.md },
   cardTitle: { ...typography.bodyStrong, color: colors.ink },
   cardMeta: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs },
+
+  badge: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.badgeTint,
+  },
+  // Small-scale asymmetric radii (the app's shape language, scaled for a 40px chip).
+  badgeRadiusA: {
+    borderTopLeftRadius: 13,
+    borderTopRightRadius: 5,
+    borderBottomRightRadius: 13,
+    borderBottomLeftRadius: 5,
+  },
+  badgeRadiusB: {
+    borderTopLeftRadius: 5,
+    borderTopRightRadius: 13,
+    borderBottomRightRadius: 5,
+    borderBottomLeftRadius: 13,
+  },
+  badgeText: { ...typography.bodyStrong, color: colors.accent, fontSize: 15 },
 
   stateBox: { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.xs },
   emptyTitle: { ...typography.bodyStrong, color: colors.ink, marginTop: spacing.sm },

@@ -78,6 +78,10 @@ model TailoredResume {
   // "Here's what we found" list without recomputing scores. Array of RetrievedCandidateView.
   retrievedCandidates   Json?
   renderedContent       Json?
+  // Overall JD match score (0–100), computed at generate time over the selected
+  // candidates (resume-engine computeMatchScore) — the RAG pipeline's signature
+  // output for the result dial + history badge. Null until generate has run.
+  matchScore            Int?
   // Stored rendered export files (worker renders PDF+DOCX at generate time and
   // uploads via the FileStore; served by GET /resumes/:id/export). Shape:
   // { pdf: { key, contentType, filename }, docx: {...} }. See StoredExportFiles.

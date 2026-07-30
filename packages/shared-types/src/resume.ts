@@ -242,6 +242,13 @@ export interface TailoredResumeSummary {
   seniority: string;
   /** Which export formats are ready to download. */
   availableFormats: ExportFormat[];
+  /**
+   * Overall JD match score (0–100) — the RAG pipeline's signature output, shown
+   * as the compact badge on the history card. Computed at generate time over the
+   * selected candidates (see resume-engine `computeMatchScore`). Null for resumes
+   * generated before match scoring shipped.
+   */
+  matchScore: number | null;
   createdAt: string;
 }
 
@@ -259,6 +266,8 @@ export interface TailoredResumeView {
   layoutVariantId: string;
   /** Which export formats are ready to download. */
   availableFormats: ExportFormat[];
+  /** Overall JD match score (0–100) — the hero dial on the result screen. Null pre-scoring. */
+  matchScore: number | null;
   createdAt: string;
 }
 

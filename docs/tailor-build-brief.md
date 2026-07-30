@@ -190,6 +190,7 @@ model TailoredResume {
   selectedBulletIds    String[]
   retrievedCandidateIds String[]  // full candidate set, pre-confirmation (ADR-017)
   renderedContent      Json?
+  matchScore           Int?      // 0–100 JD match score, computed at generate (see note)
   version              Int      @default(1)
   createdAt            DateTime @default(now())
 }
@@ -217,6 +218,8 @@ model RefreshToken {
 Note: `TailoringJob` isn't in the original project doc's Section 6 table but is required to make ADR-015 (stage-level polling) and ADR-017 (two-phase confirm) actually implementable — it's the row `GET /resumes/jobs/:jobId` reads.
 
 Note (Milestone 3): `ExperienceBullet.embedding` is now **nullable** (`vector(1024)?`). Bullets are created in Milestone 3, but embeddings (Voyage) are computed in Milestone 5 — so a bullet exists before it's embedded. The original schema had it non-null, which the build order can't satisfy; nullable reconciles it.
+
+Note (Milestone 8): `TailoredResume.matchScore` (`Int?`, 0–100) is the RAG pipeline's signature output (project doc §9b — the result-screen dial and the history-card badge). Computed at the **generate** stage over the *selected* candidates by `resume-engine`'s pure `computeMatchScore(jdParsed, selectedCandidates)` and persisted alongside `renderedContent`. No exact formula was specified in the docs, so the first definition is a 50/50 blend of two explainable components: **coverage** (fraction of the JD's `required_skills` that at least one selected bullet is tagged with) and **strength** (mean of the selected bullets' hybrid semantic+tag retrieval scores from ADR-003, each clamped to [0,1]); when the JD lists no required skills, the score is strength alone. Surfaced on `TailoredResumeSummary.matchScore` and `TailoredResumeView.matchScore` (null for resumes generated before this shipped). *(Open for the owner: confirm the 50/50 weighting, or swap in a different formula — the computation is isolated in one pure function.)*
 
 Note (Milestone 2, slice 2): added `VerificationToken` — single-use tokens for **email verification** and **password reset**, distinguished by a `type` field (`"email_verify" | "password_reset"`). Stored hashed (sha256) with an `expiresAt` and a nullable `usedAt` (single-use). This is the "token stored server-side with expiry" that Section 6 requires; it wasn't enumerated in the original data model.
 
