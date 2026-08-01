@@ -1,7 +1,38 @@
 // Integration tests for the profile facade. Gated on RUN_DB_TESTS=1.
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@tailor/db';
-import { profileModule } from './index.js';
+import type { BankExtractor, ExtractInput } from './index.js';
+import { profileModule, setBankExtractor } from './index.js';
+import type { ExtractionResult } from '@tailor/shared-types';
+
+const EMPTY_FIELDS = {
+  title: null,
+  company: null,
+  startDate: null,
+  endDate: null,
+  location: null,
+  name: null,
+  context: null,
+  timeframe: null,
+  school: null,
+  degree: null,
+  field: null,
+  startYear: null,
+  endYear: null,
+  category: null,
+} as ExtractionResult['structuredFields'];
+
+/** Fake extractor with a fixed result, so facade tests never hit an LLM. */
+function fakeExtractor(result: ExtractionResult): BankExtractor & { calls: ExtractInput[] } {
+  const calls: ExtractInput[] = [];
+  return {
+    calls,
+    extract: async (input: ExtractInput) => {
+      calls.push(input);
+      return result;
+    },
+  };
+}
 
 const runDb = process.env.RUN_DB_TESTS === '1';
 const EMAIL = 'profile-test@example.com';
@@ -112,6 +143,72 @@ describe.skipIf(!runDb)('profileModule (DB integration)', () => {
     await expect(profileModule.deleteExperienceItem(userId, item.id)).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
+  });
+
+  it('extractBulletsForItem appends suggested bullets and fills missing fields', async () => {
+    const item = await profileModule.addExperienceItem(userId, {
+      type: 'role',
+      structuredFields: { title: 'Senior Engineer' },
+      rawInput: 'I led the checkout migration and owned CI/CD.',
+    });
+    setBankExtractor(
+      fakeExtractor({
+        type: 'role',
+        structuredFields: { ...EMPTY_FIELDS, title: 'IGNORED', company: 'Acme Co.' },
+        bullets: [
+          {
+            text: 'Led the checkout migration',
+            impactMetric: '18% less abandonment',
+            tags: ['impact'],
+          },
+          { text: 'Owned the CI/CD pipeline', impactMetric: null, tags: [] },
+        ],
+      }),
+    );
+
+    const updated = await profileModule.extractBulletsForItem(userId, item.id);
+    // Two suggested bullets were added.
+    expect(updated.bullets).toHaveLength(2);
+    expect(updated.bullets.every((b) => b.status === 'suggested')).toBe(true);
+    // A missing field was filled, but the user's existing title was NOT overwritten.
+    expect(updated.structuredFields.title).toBe('Senior Engineer');
+    expect(updated.structuredFields.company).toBe('Acme Co.');
+  });
+
+  it("extractBulletsForItem on another user's item → NOT_FOUND", async () => {
+    const item = await profileModule.addExperienceItem(otherUserId, {
+      type: 'role',
+      structuredFields: {},
+      rawInput: 'text',
+    });
+    await expect(profileModule.extractBulletsForItem(userId, item.id)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('extractItemFromText creates a freeform item with suggested bullets', async () => {
+    setBankExtractor(
+      fakeExtractor({
+        type: 'project',
+        structuredFields: { ...EMPTY_FIELDS, name: 'On-device CV pipeline', timeframe: '2023' },
+        bullets: [
+          { text: 'Built an on-device document scanner', impactMetric: null, tags: ['ml'] },
+        ],
+      }),
+    );
+
+    const item = await profileModule.extractItemFromText(userId, {
+      text: 'I built an on-device CV pipeline in 2023 with TensorFlow Lite.',
+    });
+    expect(item.type).toBe('project');
+    expect(item.source).toBe('freeform_extracted');
+    expect(item.rawInput).toContain('TensorFlow Lite');
+    expect(item.structuredFields.name).toBe('On-device CV pipeline');
+    expect(item.bullets).toHaveLength(1);
+    expect(item.bullets[0]?.status).toBe('suggested');
+
+    const bank = await profileModule.getExperienceBank(userId);
+    expect(bank.project).toHaveLength(1);
   });
 
   it('updateBullet: edit changes text, reject keeps text', async () => {

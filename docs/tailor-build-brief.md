@@ -262,11 +262,14 @@ GET    /api/bank                        → ExperienceItem[] grouped by type
 POST   /api/bank/items                  { type, structuredFields | rawInput } → ExperienceItem
 POST   /api/bank/items/:id/bullets      { text, tags?, impactMetric? } → ExperienceBullet (status: "accepted")  # manual add (M3)
 DELETE /api/bank/items/:id              → 204  (removes the item + its bullets; user-scoped)                    # (M8)
-POST   /api/bank/items/:id/extract      (for freeform/import) → ExperienceBullet[] (status: "suggested")        # LLM (M4, not built yet — gates the mobile "Write about it" + "Import from resume" screens)
+POST   /api/bank/items/:id/extract      → ExperienceItem (appends bullets, status: "suggested")                 # LLM (M8) — "Save and extract bullets" from an item's saved description
+POST   /api/bank/extract                { text, type? } → 201 ExperienceItem (source freeform_extracted, suggested bullets)  # LLM (M8) — the "Write about it" flow (Claude infers type + fields + bullets)
 PATCH  /api/bank/bullets/:id             { status, text? } → ExperienceBullet   (accept/edit/reject)
 GET    /api/bank/basics                  → ResumeBasics | null
 PUT    /api/bank/basics                  → ResumeBasics
 ```
+
+Note (M8): bank extraction runs **synchronously** inside the web request (a single Haiku call via `profileModule` → `getBankExtractor()`), not through the worker queue like JD parsing. Bank extraction is short and interactive (write → extract → review in one round-trip), so a staged/polled job would only add latency and UI complexity; the JD pipeline stays async because it chains parse → retrieve → generate. Same stub-fallback as the JD parser: no `ANTHROPIC_API_KEY` → `StubBankExtractor` (deterministic canned bullets) so the flow runs end-to-end without a key. Not yet built: **file import** ("Import from resume" — needs PDF/DOCX upload + text extraction); the extractor operates on text, so import can layer a file→text step on top of it later.
 
 ### Account & settings (added — surfaced as a gap by the PRD's traceability table)
 ```

@@ -49,6 +49,55 @@ export const updateResumeBasicsSchema = z.object({
 });
 export type UpdateResumeBasicsInput = z.infer<typeof updateResumeBasicsSchema>;
 
+// --- LLM extraction (freeform "Write about it" / item-description → bullets) ---
+
+/**
+ * The structured output Claude returns when extracting an Experience Bank entry
+ * from freeform text (build brief §5/§7, ADR-004: Haiku for extraction). Kept free
+ * of min/max constraints — structured-output schemas don't support them (same rule
+ * as `jdParsedSchema`). Absent fields come back as null and are dropped on persist.
+ */
+export const extractedBulletSchema = z.object({
+  text: z.string(),
+  impactMetric: z.string().nullable(),
+  tags: z.array(z.string()),
+});
+
+export const extractedFieldsSchema = z.object({
+  // role
+  title: z.string().nullable(),
+  company: z.string().nullable(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+  location: z.string().nullable(),
+  // project
+  name: z.string().nullable(),
+  context: z.string().nullable(),
+  timeframe: z.string().nullable(),
+  // education
+  school: z.string().nullable(),
+  degree: z.string().nullable(),
+  field: z.string().nullable(),
+  startYear: z.string().nullable(),
+  endYear: z.string().nullable(),
+  // skill
+  category: z.string().nullable(),
+});
+
+export const extractionResultSchema = z.object({
+  type: z.enum(EXPERIENCE_TYPES),
+  structuredFields: extractedFieldsSchema,
+  bullets: z.array(extractedBulletSchema),
+});
+export type ExtractionResult = z.infer<typeof extractionResultSchema>;
+
+/** POST /api/bank/extract — create an item from freeform text (type optional hint). */
+export const extractFromTextSchema = z.object({
+  text: z.string().min(1).max(5000),
+  type: z.enum(EXPERIENCE_TYPES).optional(),
+});
+export type ExtractFromTextInput = z.infer<typeof extractFromTextSchema>;
+
 // --- Responses ---
 
 export interface BulletView {

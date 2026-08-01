@@ -6,6 +6,8 @@ import { GET as getBank } from './route';
 import { POST as postItem } from './items/route';
 import { POST as postBullet } from './items/[id]/bullets/route';
 import { DELETE as deleteItem } from './items/[id]/route';
+import { POST as extractItem } from './items/[id]/extract/route';
+import { POST as extractFromText } from './extract/route';
 import { PATCH as patchBullet } from './bullets/[id]/route';
 import { GET as getBasics, PUT as putBasics } from './basics/route';
 import { POST as signup } from '../auth/signup/route';
@@ -29,6 +31,8 @@ describe('bank routes — auth required (no DB)', () => {
     expect((await postBullet(req('POST', { text: 'x' }), p('id'))).status).toBe(401);
     expect((await patchBullet(req('PATCH', { status: 'accepted' }), p('id'))).status).toBe(401);
     expect((await deleteItem(req('DELETE'), p('id'))).status).toBe(401);
+    expect((await extractItem(req('POST'), p('id'))).status).toBe(401);
+    expect((await extractFromText(req('POST', { text: 'x' }))).status).toBe(401);
     expect((await getBasics(req('GET'))).status).toBe(401);
     expect((await putBasics(req('PUT', { fullName: 'A' }))).status).toBe(401);
   });
@@ -107,6 +111,42 @@ describe.skipIf(!runDb)('bank routes — full flow (DB)', () => {
     // Deleting again → 404 (already gone / not the user's).
     const again = await deleteItem(req('DELETE', undefined, token), p(item.id));
     expect(again.status).toBe(404);
+  });
+
+  it('extract from freeform text → item with suggested bullets (stub extractor)', async () => {
+    const res = await extractFromText(
+      req(
+        'POST',
+        { text: 'I led the checkout migration. I owned the mobile CI/CD pipeline.', type: 'role' },
+        token,
+      ),
+    );
+    expect(res.status).toBe(201);
+    const item = await res.json();
+    expect(item.type).toBe('role');
+    expect(item.source).toBe('freeform_extracted');
+    expect(item.bullets.length).toBeGreaterThan(0);
+    expect(item.bullets.every((b: { status: string }) => b.status === 'suggested')).toBe(true);
+  });
+
+  it('extract bullets for an existing item → suggested bullets appended', async () => {
+    const created = await postItem(
+      req(
+        'POST',
+        {
+          type: 'project',
+          structuredFields: { name: 'CV pipeline' },
+          rawInput: 'Built an on-device scanner. Shipped it to production.',
+        },
+        token,
+      ),
+    );
+    const item = await created.json();
+    const res = await extractItem(req('POST', undefined, token), p(item.id));
+    expect(res.status).toBe(200);
+    const updated = await res.json();
+    expect(updated.bullets.length).toBeGreaterThan(0);
+    expect(updated.bullets.every((b: { status: string }) => b.status === 'suggested')).toBe(true);
   });
 
   it('add item with a missing type → 400', async () => {
