@@ -2,11 +2,10 @@
 // screens/tailor_screen_add_entry_choice.svg: three tilted option cards (add
 // manually / write about it / import from resume) each with a badge-tint icon.
 //
-// "Add manually" is wired to the structured-form flow. The two extraction paths
-// depend on the LLM extraction + file-parse backend, which isn't built yet, so
-// they're shown (they're part of the finalized design) but marked "Coming soon"
-// and disabled rather than leading to a dead end — they'll be wired when that
-// backend lands.
+// "Add manually" (structured form) and "Write about it" (LLM extraction from
+// freeform text) are both wired. "Import from resume" needs file upload +
+// PDF/DOCX parsing, which isn't built yet, so it's shown (part of the finalized
+// design) but marked "Coming soon" rather than leading to a dead end.
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Svg, { Path } from 'react-native-svg';
@@ -38,7 +37,7 @@ export function AddEntryChoiceScreen({ navigation }: Props) {
         title="Write about it"
         note="Describe it in your own words"
         tilt="1deg"
-        comingSoon
+        onPress={() => navigation.navigate('WriteAboutIt')}
       />
       <OptionCard
         icon={<UploadIcon />}

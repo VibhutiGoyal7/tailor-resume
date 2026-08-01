@@ -31,5 +31,8 @@ export type BankStackParamList = {
   AddEntryChoice: undefined;
   ChooseType: undefined;
   ItemForm: { type: ExperienceType };
+  WriteAboutIt: undefined;
+  // Review LLM-suggested bullets for a freshly-extracted item before keeping them.
+  BulletReview: { itemId: string };
   ItemDetail: { itemId: string };
 };

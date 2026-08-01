@@ -9,6 +9,7 @@ import type {
   BulletView,
   ExperienceBankView,
   ExperienceItemView,
+  ExtractFromTextInput,
   ResumeBasicsView,
   UpdateBulletInput,
 } from '@tailor/shared-types';
@@ -36,6 +37,16 @@ export function updateBullet(bulletId: string, input: UpdateBulletInput): Promis
 /** DELETE /bank/items/:id — remove an item and its bullets (204). */
 export function deleteExperienceItem(itemId: string): Promise<void> {
   return apiRequest<void>(`/bank/items/${itemId}`, { method: 'DELETE' });
+}
+
+/** POST /bank/extract — create an item from freeform text (Claude infers the rest). */
+export function extractFromText(input: ExtractFromTextInput): Promise<ExperienceItemView> {
+  return apiRequest<ExperienceItemView>('/bank/extract', { method: 'POST', body: input });
+}
+
+/** POST /bank/items/:id/extract — append suggested bullets from an item's description. */
+export function extractBulletsForItem(itemId: string): Promise<ExperienceItemView> {
+  return apiRequest<ExperienceItemView>(`/bank/items/${itemId}/extract`, { method: 'POST' });
 }
 
 /** GET /bank/basics — the user's resume basics, or null if not set yet. */
