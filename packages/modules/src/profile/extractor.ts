@@ -7,6 +7,7 @@
 import {
   EXPERIENCE_TYPES,
   extractionResultSchema,
+  resumeExtractionSchema,
   type ExperienceType,
   type ExtractionResult,
 } from '@tailor/shared-types';
@@ -22,8 +23,20 @@ export interface ExtractInput {
 }
 
 export interface BankExtractor {
+  /** One item's worth of extraction (write-about-it / an item's description). */
   extract(input: ExtractInput): Promise<ExtractionResult>;
+  /** Every experience found in a full resume's text ("Import from resume"). */
+  extractResume(resumeText: string): Promise<ExtractionResult[]>;
 }
+
+/** Cap on items pulled from one resume, so a garbage upload can't explode the bank. */
+export const MAX_IMPORTED_ITEMS = 25;
+
+export const RESUME_EXTRACT_SYSTEM_PROMPT =
+  'You extract every distinct experience from the text of a resume: each role, ' +
+  'project, education entry, and skill becomes its own item with its structured ' +
+  'fields and achievement bullets. Be faithful — never invent employers, dates, or ' +
+  'metrics not in the text. Leave a field null if the text does not state it.';
 
 export const EXTRACT_MODEL = 'claude-haiku-4-5';
 
@@ -69,6 +82,24 @@ export function normalizeExtraction(
   return { type: typeHint ?? raw.type, structuredFields: fields, bullets };
 }
 
+/** All extracted-field keys, all null — the base every stub/normalize starts from. */
+const EMPTY_FIELDS: ExtractionResult['structuredFields'] = {
+  title: null,
+  company: null,
+  startDate: null,
+  endDate: null,
+  location: null,
+  name: null,
+  context: null,
+  timeframe: null,
+  school: null,
+  degree: null,
+  field: null,
+  startYear: null,
+  endYear: null,
+  category: null,
+};
+
 /**
  * Deterministic offline extractor used until a real ANTHROPIC_API_KEY is set, so
  * the write-about-it / extract-bullets flow runs end to end without a key. Splits
@@ -88,26 +119,30 @@ export class StubBankExtractor implements BankExtractor {
     const bullets = (sentences.length > 0 ? sentences : ['Contributed to the work described']).map(
       (text) => ({ text, impactMetric: null, tags: [] as string[] }),
     );
-    const empty = {
-      title: null,
-      company: null,
-      startDate: null,
-      endDate: null,
-      location: null,
-      name: null,
-      context: null,
-      timeframe: null,
-      school: null,
-      degree: null,
-      field: null,
-      startYear: null,
-      endYear: null,
-      category: null,
-    };
     return normalizeExtraction(
-      { type: input.typeHint ?? 'role', structuredFields: empty, bullets },
+      { type: input.typeHint ?? 'role', structuredFields: { ...EMPTY_FIELDS }, bullets },
       input.typeHint,
     );
+  }
+
+  async extractResume(resumeText: string): Promise<ExtractionResult[]> {
+    logger.info(
+      { chars: resumeText.length },
+      'StubBankExtractor.extractResume: returning canned items (no ANTHROPIC_API_KEY configured)',
+    );
+    // Two deterministic items so the import flow runs end to end without a key.
+    const role = await this.extract({ text: resumeText, typeHint: 'role' });
+    return [
+      role,
+      normalizeExtraction(
+        {
+          type: 'skill',
+          structuredFields: { ...EMPTY_FIELDS, name: 'Imported skill' },
+          bullets: [],
+        },
+        'skill',
+      ),
+    ];
   }
 }
 
@@ -148,6 +183,26 @@ export class AnthropicBankExtractor implements BankExtractor {
       throw new Error('Extraction returned no structured output');
     }
     return normalizeExtraction(response.parsed_output as ExtractionResult, input.typeHint);
+  }
+
+  async extractResume(resumeText: string): Promise<ExtractionResult[]> {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    const { zodOutputFormat } = await import('@anthropic-ai/sdk/helpers/zod');
+    const client = new Anthropic();
+
+    const response = await client.messages.parse({
+      model: EXTRACT_MODEL,
+      max_tokens: 8000,
+      system: RESUME_EXTRACT_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: resumeText }],
+      output_config: { format: zodOutputFormat(resumeExtractionSchema as never) },
+    });
+
+    if (!response.parsed_output) {
+      throw new Error('Resume extraction returned no structured output');
+    }
+    const { items } = response.parsed_output as { items: ExtractionResult[] };
+    return items.slice(0, MAX_IMPORTED_ITEMS).map((item) => normalizeExtraction(item));
   }
 }
 

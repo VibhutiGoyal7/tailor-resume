@@ -32,7 +32,10 @@ export type BankStackParamList = {
   ChooseType: undefined;
   ItemForm: { type: ExperienceType };
   WriteAboutIt: undefined;
+  ImportResume: undefined;
   // Review LLM-suggested bullets for a freshly-extracted item before keeping them.
   BulletReview: { itemId: string };
+  // Review suggestions across several items imported from a resume at once.
+  ImportReview: { itemIds: string[] };
   ItemDetail: { itemId: string };
 };

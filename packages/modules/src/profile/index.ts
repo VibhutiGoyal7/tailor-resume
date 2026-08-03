@@ -210,6 +210,45 @@ export const profileModule = {
     return toItemView(item);
   },
 
+  /**
+   * Import a whole resume: Claude extracts every experience from the resume's text
+   * (POST /bank/import — the route does the file→text step), each becoming a
+   * freeform_extracted item with suggested bullets to review. Items with neither a
+   * name nor any bullets are skipped as noise. Returns the created items.
+   */
+  async importResumeFromText(userId: string, resumeText: string): Promise<ExperienceItemView[]> {
+    const results = await getBankExtractor().extractResume(resumeText);
+    const created: ExperienceItemView[] = [];
+    for (const result of results) {
+      const structuredFields = Object.fromEntries(
+        Object.entries(result.structuredFields).filter(([, v]) => v != null),
+      );
+      const hasContent = Object.keys(structuredFields).length > 0 || result.bullets.length > 0;
+      if (!hasContent) continue;
+      const item = await prisma.experienceItem.create({
+        data: {
+          userId,
+          type: result.type,
+          source: 'freeform_extracted',
+          rawInput: '',
+          structuredFields: structuredFields as Prisma.InputJsonValue,
+          bullets: {
+            create: result.bullets.map((b) => ({
+              text: b.text,
+              tags: b.tags,
+              impactMetric: b.impactMetric,
+              status: 'suggested',
+            })),
+          },
+        },
+        include: { bullets: true },
+      });
+      created.push(toItemView(item));
+    }
+    logger.info({ userId, items: created.length }, 'imported resume into bank');
+    return created;
+  },
+
   /** Accept / edit / reject a bullet (build brief §5: PATCH /bank/bullets/:id). */
   async updateBullet(
     userId: string,

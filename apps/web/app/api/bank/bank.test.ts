@@ -8,6 +8,7 @@ import { POST as postBullet } from './items/[id]/bullets/route';
 import { DELETE as deleteItem } from './items/[id]/route';
 import { POST as extractItem } from './items/[id]/extract/route';
 import { POST as extractFromText } from './extract/route';
+import { POST as importResume } from './import/route';
 import { PATCH as patchBullet } from './bullets/[id]/route';
 import { GET as getBasics, PUT as putBasics } from './basics/route';
 import { POST as signup } from '../auth/signup/route';
@@ -33,6 +34,7 @@ describe('bank routes — auth required (no DB)', () => {
     expect((await deleteItem(req('DELETE'), p('id'))).status).toBe(401);
     expect((await extractItem(req('POST'), p('id'))).status).toBe(401);
     expect((await extractFromText(req('POST', { text: 'x' }))).status).toBe(401);
+    expect((await importResume(req('POST'))).status).toBe(401);
     expect((await getBasics(req('GET'))).status).toBe(401);
     expect((await putBasics(req('PUT', { fullName: 'A' }))).status).toBe(401);
   });
@@ -147,6 +149,38 @@ describe.skipIf(!runDb)('bank routes — full flow (DB)', () => {
     const updated = await res.json();
     expect(updated.bullets.length).toBeGreaterThan(0);
     expect(updated.bullets.every((b: { status: string }) => b.status === 'suggested')).toBe(true);
+  });
+
+  it('import a resume (.txt) → 201 with extracted items (stub extractor)', async () => {
+    const fd = new FormData();
+    fd.append(
+      'file',
+      new File(
+        ['I led the checkout migration at Acme. I owned the mobile CI/CD pipeline.'],
+        'resume.txt',
+        { type: 'text/plain' },
+      ),
+    );
+    const request = new Request('http://localhost/api/bank/import', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    const res = await importResume(request);
+    expect(res.status).toBe(201);
+    const items = await res.json();
+    expect(Array.isArray(items)).toBe(true);
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.every((i: { source: string }) => i.source === 'freeform_extracted')).toBe(true);
+  });
+
+  it('import with no file → 400', async () => {
+    const request = new Request('http://localhost/api/bank/import', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}` },
+      body: new FormData(),
+    });
+    expect((await importResume(request)).status).toBe(400);
   });
 
   it('add item with a missing type → 400', async () => {

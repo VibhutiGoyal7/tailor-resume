@@ -22,8 +22,11 @@ const EMPTY_FIELDS = {
   category: null,
 } as ExtractionResult['structuredFields'];
 
-/** Fake extractor with a fixed result, so facade tests never hit an LLM. */
-function fakeExtractor(result: ExtractionResult): BankExtractor & { calls: ExtractInput[] } {
+/** Fake extractor with fixed results, so facade tests never hit an LLM. */
+function fakeExtractor(
+  result: ExtractionResult,
+  resumeItems: ExtractionResult[] = [result],
+): BankExtractor & { calls: ExtractInput[] } {
   const calls: ExtractInput[] = [];
   return {
     calls,
@@ -31,6 +34,7 @@ function fakeExtractor(result: ExtractionResult): BankExtractor & { calls: Extra
       calls.push(input);
       return result;
     },
+    extractResume: async () => resumeItems,
   };
 }
 
@@ -209,6 +213,32 @@ describe.skipIf(!runDb)('profileModule (DB integration)', () => {
 
     const bank = await profileModule.getExperienceBank(userId);
     expect(bank.project).toHaveLength(1);
+  });
+
+  it('importResumeFromText creates one item per extracted experience, skipping empties', async () => {
+    const role: ExtractionResult = {
+      type: 'role',
+      structuredFields: { ...EMPTY_FIELDS, title: 'Senior Engineer', company: 'Acme Co.' },
+      bullets: [{ text: 'Led the checkout migration', impactMetric: null, tags: [] }],
+    };
+    const skill: ExtractionResult = {
+      type: 'skill',
+      structuredFields: { ...EMPTY_FIELDS, name: 'TypeScript' },
+      bullets: [],
+    };
+    const empty: ExtractionResult = { type: 'project', structuredFields: EMPTY_FIELDS, bullets: [] };
+    setBankExtractor(fakeExtractor(role, [role, skill, empty]));
+
+    const items = await profileModule.importResumeFromText(userId, 'full resume text here');
+    // The empty item is dropped; the role + skill are created.
+    expect(items).toHaveLength(2);
+    expect(items.every((i) => i.source === 'freeform_extracted')).toBe(true);
+
+    const bank = await profileModule.getExperienceBank(userId);
+    expect(bank.role).toHaveLength(1);
+    expect(bank.skill).toHaveLength(1);
+    expect(bank.project).toHaveLength(0);
+    expect(bank.role[0]?.bullets[0]?.status).toBe('suggested');
   });
 
   it('updateBullet: edit changes text, reject keeps text', async () => {

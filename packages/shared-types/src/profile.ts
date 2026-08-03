@@ -91,6 +91,15 @@ export const extractionResultSchema = z.object({
 });
 export type ExtractionResult = z.infer<typeof extractionResultSchema>;
 
+/**
+ * Structured output for a whole-resume import ("Import from resume"): the model
+ * returns every experience it can find as its own item. Same no-min/max rule.
+ */
+export const resumeExtractionSchema = z.object({
+  items: z.array(extractionResultSchema),
+});
+export type ResumeExtractionResult = z.infer<typeof resumeExtractionSchema>;
+
 /** POST /api/bank/extract — create an item from freeform text (type optional hint). */
 export const extractFromTextSchema = z.object({
   text: z.string().min(1).max(5000),

@@ -14,7 +14,9 @@
 | Mobile navigation | **React Navigation 7** (`native-stack` + `bottom-tabs`) | Milestone 8 — chosen over Expo Router for explicit control of the "auth stack outside the tabs" structure |
 | Mobile server state | **TanStack Query 5** (`@tanstack/react-query`) | Milestone 8 — handles the polling-heavy tailoring flow (ADR-015 job status), caching, retries |
 | Mobile SVG | `react-native-svg` | Milestone 8 — for the illustration motifs + reanimated building-blocks progress motif |
+| Mobile file picker | `expo-document-picker` | Milestone 8 — "Import from resume" file selection (PDF/DOCX) |
 | Backend API | **Next.js** (App Router, API routes only — no frontend pages needed) | Deployed as a standard Node server, **not** Vercel serverless functions (see worker note below) |
+| Resume file parsing | `unpdf` (PDF→text) + `mammoth` (DOCX→text) | Milestone 8 — web-route parsing for `POST /bank/import` (Node runtime); kept out of the module facade so it stays file-parser-free |
 | Worker process | **Plain Node script** (`worker/index.ts`), same repo, same Prisma client, separate deployable | Next.js API routes are request/response; the async pipeline (ADR-009) needs a long-running process pulling from a queue. This is a second service, not a Next.js route. |
 | Queue | Redis + **BullMQ** | Standard Node pairing, matches ADR-001/009 |
 | Database | Postgres + **pgvector**, via **Prisma** | Neon or Supabase free tier |
@@ -264,12 +266,13 @@ POST   /api/bank/items/:id/bullets      { text, tags?, impactMetric? } → Exper
 DELETE /api/bank/items/:id              → 204  (removes the item + its bullets; user-scoped)                    # (M8)
 POST   /api/bank/items/:id/extract      → ExperienceItem (appends bullets, status: "suggested")                 # LLM (M8) — "Save and extract bullets" from an item's saved description
 POST   /api/bank/extract                { text, type? } → 201 ExperienceItem (source freeform_extracted, suggested bullets)  # LLM (M8) — the "Write about it" flow (Claude infers type + fields + bullets)
+POST   /api/bank/import                  multipart file (PDF/DOCX, ≤5MB) → 201 ExperienceItem[] (suggested bullets)          # LLM (M8) — "Import from resume" (parse file → text → extract every experience)
 PATCH  /api/bank/bullets/:id             { status, text? } → ExperienceBullet   (accept/edit/reject)
 GET    /api/bank/basics                  → ResumeBasics | null
 PUT    /api/bank/basics                  → ResumeBasics
 ```
 
-Note (M8): bank extraction runs **synchronously** inside the web request (a single Haiku call via `profileModule` → `getBankExtractor()`), not through the worker queue like JD parsing. Bank extraction is short and interactive (write → extract → review in one round-trip), so a staged/polled job would only add latency and UI complexity; the JD pipeline stays async because it chains parse → retrieve → generate. Same stub-fallback as the JD parser: no `ANTHROPIC_API_KEY` → `StubBankExtractor` (deterministic canned bullets) so the flow runs end-to-end without a key. Not yet built: **file import** ("Import from resume" — needs PDF/DOCX upload + text extraction); the extractor operates on text, so import can layer a file→text step on top of it later.
+Note (M8): bank extraction runs **synchronously** inside the web request (a single Haiku call via `profileModule` → `getBankExtractor()`), not through the worker queue like JD parsing. Bank extraction is short and interactive (write → extract → review in one round-trip), so a staged/polled job would only add latency and UI complexity; the JD pipeline stays async because it chains parse → retrieve → generate. Same stub-fallback as the JD parser: no `ANTHROPIC_API_KEY` → `StubBankExtractor` (deterministic canned bullets) so the flow runs end-to-end without a key. **File import** ("Import from resume") is also built: `POST /bank/import` takes a multipart PDF/DOCX (≤5MB), the web route turns it into text (`unpdf` for PDF, `mammoth` for DOCX; parse lives in the route, not the module facade, so the facade stays file-parser-free), then `extractResume` pulls every experience out as its own `freeform_extracted` item with suggested bullets. The mobile app picks the file with `expo-document-picker` and reviews all items together on an import-review screen.
 
 ### Account & settings (added — surfaced as a gap by the PRD's traceability table)
 ```

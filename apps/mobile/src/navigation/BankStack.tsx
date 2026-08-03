@@ -7,7 +7,9 @@ import { AddEntryChoiceScreen } from '../screens/bank/AddEntryChoiceScreen';
 import { ChooseTypeScreen } from '../screens/bank/ChooseTypeScreen';
 import { ItemFormScreen } from '../screens/bank/ItemFormScreen';
 import { WriteAboutItScreen } from '../screens/bank/WriteAboutItScreen';
+import { ImportResumeScreen } from '../screens/bank/ImportResumeScreen';
 import { BulletReviewScreen } from '../screens/bank/BulletReviewScreen';
+import { ImportReviewScreen } from '../screens/bank/ImportReviewScreen';
 import { ItemDetailScreen } from '../screens/bank/ItemDetailScreen';
 import type { BankStackParamList } from './types';
 
@@ -21,7 +23,9 @@ export function BankStack() {
       <Stack.Screen name="ChooseType" component={ChooseTypeScreen} />
       <Stack.Screen name="ItemForm" component={ItemFormScreen} />
       <Stack.Screen name="WriteAboutIt" component={WriteAboutItScreen} />
+      <Stack.Screen name="ImportResume" component={ImportResumeScreen} />
       <Stack.Screen name="BulletReview" component={BulletReviewScreen} />
+      <Stack.Screen name="ImportReview" component={ImportReviewScreen} />
       <Stack.Screen name="ItemDetail" component={ItemDetailScreen} />
     </Stack.Navigator>
   );

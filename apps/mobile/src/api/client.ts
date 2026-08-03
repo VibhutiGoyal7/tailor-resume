@@ -136,3 +136,42 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   if (res.status === 204) return undefined as T;
   return (await parseBody(res)) as T;
 }
+
+/**
+ * Multipart upload (POST FormData) with the same bearer + 401-refresh handling as
+ * `apiRequest`. Content-type is intentionally left unset so React Native adds the
+ * multipart boundary itself. Used for the "Import from resume" file upload.
+ */
+export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
+  const doFetch = (token: string | null): Promise<Response> =>
+    fetch(joinUrl(API_BASE_URL, path), {
+      method: 'POST',
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+
+  const token = authBridge?.getTokens()?.accessToken ?? null;
+  let res: Response;
+  try {
+    res = await doFetch(token);
+  } catch (err) {
+    logger.error('upload request failed', { path, error: String(err) });
+    throw new ApiRequestError('INTERNAL', 'Network error — check your connection.', 0);
+  }
+
+  if (res.status === 401) {
+    const refreshed = await refreshTokens();
+    if (refreshed) res = await doFetch(refreshed.accessToken);
+    else authBridge?.onAuthLost();
+  }
+
+  if (!res.ok) {
+    const errorBody = await parseBody(res);
+    const apiError = toApiRequestError(res.status, errorBody);
+    logger.warn('upload failed', { path, status: res.status, code: apiError.code });
+    throw apiError;
+  }
+
+  logger.info('upload ok', { path, status: res.status });
+  return (await parseBody(res)) as T;
+}
