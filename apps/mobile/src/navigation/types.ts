@@ -2,6 +2,8 @@
 // The app is an auth stack (logged out) OR a 4-tab bar (logged in), with a
 // one-time First-run choice in between (rendered by RootNavigator on the auth
 // status + first-run flag).
+import type { ExperienceType } from '@tailor/shared-types';
+
 export type AuthMode = 'signup' | 'login';
 
 export type AuthStackParamList = {
@@ -18,4 +20,16 @@ export type AppTabsParamList = {
   Bank: undefined;
   Resumes: undefined;
   Profile: undefined;
+};
+
+// Experience Bank flow (the Bank tab is a stack): list → add-entry choice →
+// (manual) type picker → the per-type form; and list/detail for an existing item.
+// The two extraction paths (write-about-it, import) are gated on the LLM
+// extraction backend and land with it.
+export type BankStackParamList = {
+  BankList: undefined;
+  AddEntryChoice: undefined;
+  ChooseType: undefined;
+  ItemForm: { type: ExperienceType };
+  ItemDetail: { itemId: string };
 };

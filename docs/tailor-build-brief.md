@@ -261,7 +261,8 @@ Rate limit: 7 attempts on `/login` and `/signup` (ADR-010).
 GET    /api/bank                        → ExperienceItem[] grouped by type
 POST   /api/bank/items                  { type, structuredFields | rawInput } → ExperienceItem
 POST   /api/bank/items/:id/bullets      { text, tags?, impactMetric? } → ExperienceBullet (status: "accepted")  # manual add (M3)
-POST   /api/bank/items/:id/extract      (for freeform/import) → ExperienceBullet[] (status: "suggested")        # LLM (M4)
+DELETE /api/bank/items/:id              → 204  (removes the item + its bullets; user-scoped)                    # (M8)
+POST   /api/bank/items/:id/extract      (for freeform/import) → ExperienceBullet[] (status: "suggested")        # LLM (M4, not built yet — gates the mobile "Write about it" + "Import from resume" screens)
 PATCH  /api/bank/bullets/:id             { status, text? } → ExperienceBullet   (accept/edit/reject)
 GET    /api/bank/basics                  → ResumeBasics | null
 PUT    /api/bank/basics                  → ResumeBasics
