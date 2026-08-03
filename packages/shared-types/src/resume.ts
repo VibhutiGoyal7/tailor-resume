@@ -58,6 +58,12 @@ export interface JobStatusView {
   jobId: string;
   stage: JobStage;
   failedStage: string | null;
+  /**
+   * The TailoredResume this job produced, once parsing has created it. Null while
+   * still `parsing`. The mobile flow uses this to navigate from a finished job to
+   * the result/export screens (which are keyed on the resume, not the job).
+   */
+  resumeId: string | null;
   /** Present once parsing has completed. */
   jdParsed: JdParsed | null;
   /** Present once retrieval has completed (stage `awaiting_confirmation`+). */

@@ -8,7 +8,9 @@
 import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigation } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Svg, { Circle, Path } from 'react-native-svg';
 import type { TailoredResumeSummary } from '@tailor/shared-types';
 import { ScreenContainer } from '../components/ScreenContainer';
@@ -18,11 +20,14 @@ import { getResumeBasics } from '../api/bank';
 import { relativeTime } from '../lib/time';
 import { logger } from '../lib/logger';
 import { colors, radii, spacing, typography } from '../theme/tokens';
-import type { AppTabsParamList } from '../navigation/types';
+import type { AppTabsParamList, RootStackParamList } from '../navigation/types';
 
 type Props = BottomTabScreenProps<AppTabsParamList, 'Home'>;
 
 export function HomeScreen({ navigation }: Props) {
+  // The tailoring flow lives on the root stack (above the tabs); reach it via the
+  // parent navigator rather than the tab navigation prop.
+  const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const basics = useQuery({ queryKey: ['bank', 'basics'], queryFn: getResumeBasics });
   const resumes = useQuery({ queryKey: ['resumes'], queryFn: listResumes });
 
@@ -30,14 +35,13 @@ export function HomeScreen({ navigation }: Props) {
   const firstName = basics.data?.fullName?.trim().split(/\s+/)[0] ?? 'there';
 
   const onStartTailoring = () => {
-    // The tailoring flow (JD input → staged progress → result) lands in the next
-    // screen group; wire this navigation when that stack exists.
     logger.info('home: start tailoring tapped');
+    rootNav.navigate('JDInput');
   };
 
   const onOpenResume = (id: string) => {
-    // Resume detail lands with the Resumes screen group.
     logger.info('home: open resume', { id });
+    rootNav.navigate('Result', { resumeId: id });
   };
 
   return (

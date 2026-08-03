@@ -149,6 +149,12 @@ describe.skipIf(!runDb)('resumeEngine parse + retrieve (DB)', () => {
     const status = await resumeEngine.getJobStatus(userId, jobId);
     expect(status.stage).toBe('awaiting_confirmation');
     expect(status.failedStage).toBeNull();
+    // resumeId is exposed once parsing has created the TailoredResume, so the
+    // mobile flow can navigate from a finished job to the result/export screens.
+    expect(status.resumeId).toBe(
+      (await prisma.tailoringJob.findUnique({ where: { id: jobId } }))!.tailoredResumeId,
+    );
+    expect(status.resumeId).not.toBeNull();
     expect(status.retrievedCandidates).not.toBeNull();
     const candidates = status.retrievedCandidates!;
     expect(candidates.length).toBeGreaterThan(0);

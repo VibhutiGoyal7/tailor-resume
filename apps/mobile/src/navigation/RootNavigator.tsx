@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { SplashScreen } from '../screens/SplashScreen';
 import { FirstRunChoiceScreen } from '../screens/auth/FirstRunChoiceScreen';
 import { AuthStack } from './AuthStack';
-import { AppTabs } from './AppTabs';
+import { AppNavigator } from './AppNavigator';
 
 export function RootNavigator() {
   const { status, firstRunComplete } = useAuth();
@@ -23,7 +23,7 @@ export function RootNavigator() {
   if (!firstRunComplete) return <FirstRunChoiceScreen />;
   return (
     <NavigationContainer>
-      <AppTabs />
+      <AppNavigator />
     </NavigationContainer>
   );
 }

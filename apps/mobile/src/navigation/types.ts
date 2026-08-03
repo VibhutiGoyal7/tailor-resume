@@ -3,8 +3,25 @@
 // one-time First-run choice in between (rendered by RootNavigator on the auth
 // status + first-run flag).
 import type { ExperienceType } from '@tailor/shared-types';
+import type { TailorPhase } from '../lib/tailoring';
 
 export type AuthMode = 'signup' | 'login';
+
+// The logged-in app is a root native stack: the tab bar is the base screen, and the
+// tailoring flow (JD input → staged progress → retrieval checkpoint → result →
+// customize → export) pushes over it. Keeping the flow at the root (not inside a
+// tab) lets it present full-screen over the whole app and be entered from Home.
+export type RootStackParamList = {
+  Tabs: undefined;
+  JDInput: undefined;
+  // `phase` selects which staged-progress screen we're on: 'retrieve' (parse →
+  // checkpoint) or 'generate' (write → done).
+  StagedProgress: { jobId: string; phase: TailorPhase };
+  RetrievalCheckpoint: { jobId: string };
+  Result: { resumeId: string };
+  LayoutCustomize: { resumeId: string };
+  Export: { resumeId: string };
+};
 
 export type AuthStackParamList = {
   Welcome: undefined;

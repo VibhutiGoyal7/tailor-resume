@@ -25,6 +25,15 @@ export function registerAuthBridge(bridge: AuthBridge): void {
   authBridge = bridge;
 }
 
+/**
+ * The current access token, for the few callers that fetch outside `apiRequest`
+ * (e.g. the export download via expo-file-system's `downloadAsync`, which streams
+ * straight to a file and needs the bearer header passed in). Null when logged out.
+ */
+export function getAccessToken(): string | null {
+  return authBridge?.getTokens()?.accessToken ?? null;
+}
+
 /** Join the base URL and a path without doubling or dropping the slash. Pure. */
 export function joinUrl(base: string, path: string): string {
   return `${base.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;

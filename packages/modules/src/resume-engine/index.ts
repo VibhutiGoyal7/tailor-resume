@@ -309,6 +309,7 @@ export const resumeEngine = {
       jobId: job.id,
       stage: job.stage as JobStage,
       failedStage: job.failedStage,
+      resumeId: job.tailoredResumeId,
       jdParsed,
       retrievedCandidates,
       renderedContent,
