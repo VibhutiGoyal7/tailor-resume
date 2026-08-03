@@ -16,10 +16,13 @@ import {
   type ExperienceBankView,
   type ExperienceItemView,
   type ExperienceType,
+  type ExtractFromTextInput,
   type ResumeBasicsView,
   type UpdateBulletInput,
   type UpdateResumeBasicsInput,
 } from '@tailor/shared-types';
+import { getBankExtractor } from './extractor.js';
+import { logger } from '../logger.js';
 
 type ItemWithBullets = ExperienceItem & { bullets: ExperienceBullet[] };
 
@@ -104,6 +107,146 @@ export const profileModule = {
       },
     });
     return toBulletView(bullet);
+  },
+
+  /**
+   * Extract suggested bullets for an existing item from its saved description
+   * (POST /bank/items/:id/extract — the manual forms' "Save and extract bullets").
+   * Runs Claude over the item's rawInput (with its type + fields for context) and
+   * appends the results as "suggested" bullets for the user to review. Any fields
+   * the model recovers that the item is missing are filled in. Returns the updated
+   * item. If the item has no text to work from, it's returned unchanged.
+   */
+  async extractBulletsForItem(userId: string, itemId: string): Promise<ExperienceItemView> {
+    const item = await prisma.experienceItem.findFirst({
+      where: { id: itemId, userId },
+      include: { bullets: true },
+    });
+    if (!item) throw new AppError('NOT_FOUND', 'Experience item not found.');
+    if (!item.rawInput.trim()) return toItemView(item);
+
+    const existingFields = (item.structuredFields ?? {}) as Record<string, unknown>;
+    const result = await getBankExtractor().extract({
+      text: item.rawInput,
+      typeHint: item.type as ExperienceType,
+      structuredFields: existingFields,
+    });
+
+    // Fill only fields the item is missing (never overwrite what the user typed).
+    const mergedFields = { ...existingFields };
+    for (const [k, v] of Object.entries(result.structuredFields)) {
+      if (v && !mergedFields[k]) mergedFields[k] = v;
+    }
+
+    await prisma.$transaction([
+      prisma.experienceItem.update({
+        where: { id: itemId },
+        data: { structuredFields: mergedFields as Prisma.InputJsonValue },
+      }),
+      ...result.bullets.map((b) =>
+        prisma.experienceBullet.create({
+          data: {
+            experienceItemId: itemId,
+            text: b.text,
+            tags: b.tags,
+            impactMetric: b.impactMetric,
+            status: 'suggested',
+          },
+        }),
+      ),
+    ]);
+
+    const updated = await prisma.experienceItem.findUniqueOrThrow({
+      where: { id: itemId },
+      include: { bullets: true },
+    });
+    logger.info(
+      { itemId, suggested: result.bullets.length },
+      'extracted suggested bullets for item',
+    );
+    return toItemView(updated);
+  },
+
+  /**
+   * Create an Experience Bank item from freeform text (POST /bank/extract — the
+   * "Write about it" flow). Claude infers the type (unless hinted), the structured
+   * fields, and a set of "suggested" bullets; the original text is kept as rawInput.
+   * Returns the new item with its suggested bullets for the review step.
+   */
+  async extractItemFromText(
+    userId: string,
+    input: ExtractFromTextInput,
+  ): Promise<ExperienceItemView> {
+    const result = await getBankExtractor().extract({
+      text: input.text,
+      typeHint: input.type,
+    });
+    const structuredFields = Object.fromEntries(
+      Object.entries(result.structuredFields).filter(([, v]) => v != null),
+    );
+
+    const item = await prisma.experienceItem.create({
+      data: {
+        userId,
+        type: result.type,
+        source: 'freeform_extracted',
+        rawInput: input.text,
+        structuredFields: structuredFields as Prisma.InputJsonValue,
+        bullets: {
+          create: result.bullets.map((b) => ({
+            text: b.text,
+            tags: b.tags,
+            impactMetric: b.impactMetric,
+            status: 'suggested',
+          })),
+        },
+      },
+      include: { bullets: true },
+    });
+    logger.info(
+      { itemId: item.id, type: result.type, suggested: result.bullets.length },
+      'created item from freeform extraction',
+    );
+    return toItemView(item);
+  },
+
+  /**
+   * Import a whole resume: Claude extracts every experience from the resume's text
+   * (POST /bank/import — the route does the file→text step), each becoming a
+   * freeform_extracted item with suggested bullets to review. Items with neither a
+   * name nor any bullets are skipped as noise. Returns the created items.
+   */
+  async importResumeFromText(userId: string, resumeText: string): Promise<ExperienceItemView[]> {
+    const results = await getBankExtractor().extractResume(resumeText);
+    const created: ExperienceItemView[] = [];
+    for (const result of results) {
+      const structuredFields = Object.fromEntries(
+        Object.entries(result.structuredFields).filter(([, v]) => v != null),
+      );
+      const hasContent = Object.keys(structuredFields).length > 0 || result.bullets.length > 0;
+      if (!hasContent) continue;
+      const item = await prisma.experienceItem.create({
+        data: {
+          userId,
+          type: result.type,
+          source: 'freeform_extracted',
+          rawInput: '',
+          structuredFields: structuredFields as Prisma.InputJsonValue,
+          bullets: {
+            create: result.bullets.map((b) => ({
+              text: b.text,
+              tags: b.tags,
+              impactMetric: b.impactMetric,
+              status: 'suggested',
+            })),
+          },
+        },
+        include: { bullets: true },
+      });
+      created.push(toItemView(item));
+    }
+    logger.info({ userId, items: created.length }, 'imported resume into bank');
+    return created;
   },
 
   /** Accept / edit / reject a bullet (build brief §5: PATCH /bank/bullets/:id). */
@@ -254,3 +397,13 @@ export const profileModule = {
 
 // Keep EXPERIENCE_TYPES reachable for callers that iterate the bank shape.
 export { EXPERIENCE_TYPES };
+
+// Extractor injection points (tests swap in a fake; production auto-selects the
+// Anthropic extractor when a key is set, else the stub).
+export {
+  getBankExtractor,
+  setBankExtractor,
+  StubBankExtractor,
+  type BankExtractor,
+  type ExtractInput,
+} from './extractor.js';

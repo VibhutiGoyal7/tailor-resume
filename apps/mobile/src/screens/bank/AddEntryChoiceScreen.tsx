@@ -2,11 +2,9 @@
 // screens/tailor_screen_add_entry_choice.svg: three tilted option cards (add
 // manually / write about it / import from resume) each with a badge-tint icon.
 //
-// "Add manually" is wired to the structured-form flow. The two extraction paths
-// depend on the LLM extraction + file-parse backend, which isn't built yet, so
-// they're shown (they're part of the finalized design) but marked "Coming soon"
-// and disabled rather than leading to a dead end — they'll be wired when that
-// backend lands.
+// All three paths are wired: "Add manually" (structured form), "Write about it"
+// (LLM extraction from freeform text), and "Import from resume" (upload a PDF/DOCX,
+// parse + extract every experience).
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Svg, { Path } from 'react-native-svg';
@@ -38,14 +36,14 @@ export function AddEntryChoiceScreen({ navigation }: Props) {
         title="Write about it"
         note="Describe it in your own words"
         tilt="1deg"
-        comingSoon
+        onPress={() => navigation.navigate('WriteAboutIt')}
       />
       <OptionCard
         icon={<UploadIcon />}
         title="Import from resume"
         note="Upload a resume, we'll extract it"
         tilt="-1deg"
-        comingSoon
+        onPress={() => navigation.navigate('ImportResume')}
       />
     </ScreenContainer>
   );
@@ -57,33 +55,26 @@ function OptionCard({
   note,
   tilt,
   onPress,
-  comingSoon = false,
 }: {
   icon: React.ReactNode;
   title: string;
   note: string;
   tilt: string;
-  onPress?: () => void;
-  comingSoon?: boolean;
+  onPress: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      disabled={comingSoon}
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
         { transform: [{ rotate: tilt }] },
-        comingSoon ? styles.cardDisabled : null,
-        pressed && !comingSoon ? styles.pressed : null,
+        pressed ? styles.pressed : null,
       ]}
     >
       <View style={styles.iconCircle}>{icon}</View>
       <View style={styles.cardText}>
-        <View style={styles.titleRow}>
-          <Text style={styles.cardTitle}>{title}</Text>
-          {comingSoon ? <Text style={styles.soon}>Coming soon</Text> : null}
-        </View>
+        <Text style={styles.cardTitle}>{title}</Text>
         <Text style={styles.cardNote}>{note}</Text>
       </View>
     </Pressable>
@@ -124,7 +115,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     ...radii.card,
   },
-  cardDisabled: { opacity: 0.55 },
   iconCircle: {
     width: 40,
     height: 40,
@@ -135,17 +125,7 @@ const styles = StyleSheet.create({
     marginRight: spacing.lg,
   },
   cardText: { flex: 1 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   cardTitle: { ...typography.heading, color: colors.ink },
-  soon: {
-    ...typography.micro,
-    color: colors.accent,
-    backgroundColor: colors.badgeTint,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radii.pill,
-    overflow: 'hidden',
-  },
   cardNote: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs },
   pressed: { opacity: 0.85 },
 });

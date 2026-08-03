@@ -2,13 +2,14 @@
 // screens consume these through TanStack Query. Mirrors the profile facade surface
 // the mobile app needs: read the bank, add a structured item, add a bullet, update
 // a bullet's status, delete an item, and read resume basics.
-import { apiRequest } from './client';
+import { apiRequest, apiUpload } from './client';
 import type {
   AddBulletInput,
   AddExperienceItemInput,
   BulletView,
   ExperienceBankView,
   ExperienceItemView,
+  ExtractFromTextInput,
   ResumeBasicsView,
   UpdateBulletInput,
 } from '@tailor/shared-types';
@@ -36,6 +37,35 @@ export function updateBullet(bulletId: string, input: UpdateBulletInput): Promis
 /** DELETE /bank/items/:id — remove an item and its bullets (204). */
 export function deleteExperienceItem(itemId: string): Promise<void> {
   return apiRequest<void>(`/bank/items/${itemId}`, { method: 'DELETE' });
+}
+
+/** POST /bank/extract — create an item from freeform text (Claude infers the rest). */
+export function extractFromText(input: ExtractFromTextInput): Promise<ExperienceItemView> {
+  return apiRequest<ExperienceItemView>('/bank/extract', { method: 'POST', body: input });
+}
+
+/** POST /bank/items/:id/extract — append suggested bullets from an item's description. */
+export function extractBulletsForItem(itemId: string): Promise<ExperienceItemView> {
+  return apiRequest<ExperienceItemView>(`/bank/items/${itemId}/extract`, { method: 'POST' });
+}
+
+/** A picked file to upload (shape from expo-document-picker). */
+export interface UploadFile {
+  uri: string;
+  name: string;
+  mimeType?: string;
+}
+
+/** POST /bank/import — upload a resume file; returns the extracted items (suggested). */
+export function importResume(file: UploadFile): Promise<ExperienceItemView[]> {
+  const form = new FormData();
+  // React Native's FormData accepts this {uri,name,type} file descriptor.
+  form.append('file', {
+    uri: file.uri,
+    name: file.name,
+    type: file.mimeType ?? 'application/octet-stream',
+  } as unknown as Blob);
+  return apiUpload<ExperienceItemView[]>('/bank/import', form);
 }
 
 /** GET /bank/basics — the user's resume basics, or null if not set yet. */

@@ -1,9 +1,10 @@
 // The structured add-item form, built to the per-type form designs
 // (screens/tailor_screen_form_{role,project,skill,education}.svg). The fields are
 // config-driven per Experience Bank type; the free-text description/notes field is
-// also saved as rawInput so a later LLM extraction pass can pull bullets from it.
-// On save the item is created (POST /bank/items) and we jump to its detail, where
-// bullets are added manually (extraction isn't wired yet).
+// saved as rawInput. On save the item is created (POST /bank/items); for roles and
+// projects (whose design CTA is "Save and extract bullets") we then run extraction
+// over the description and go to the review step. Skills/education just save and
+// jump to item detail.
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -14,7 +15,7 @@ import { ScreenHeader } from '../../components/ScreenHeader';
 import { TextField } from '../../components/ui/TextField';
 import { Button } from '../../components/ui/Button';
 import { ErrorDialog } from '../../components/ErrorDialog';
-import { addExperienceItem } from '../../api/bank';
+import { addExperienceItem, extractBulletsForItem } from '../../api/bank';
 import { errorToCopy, type ErrorCopy } from '../../errors/errorCopy';
 import { logger } from '../../lib/logger';
 import { spacing } from '../../theme/tokens';
@@ -33,7 +34,8 @@ interface FieldDef {
 interface FormDef {
   title: string;
   primaryKey: string; // required field
-  descriptionKey?: string; // also stored as rawInput for later extraction
+  descriptionKey?: string; // also stored as rawInput, and extracted from
+  extractsBullets?: boolean; // role/project: "Save and extract bullets" → review
   fields: FieldDef[];
 }
 
@@ -42,6 +44,7 @@ const FORMS: Record<ExperienceType, FormDef> = {
     title: 'Add a role',
     primaryKey: 'title',
     descriptionKey: 'description',
+    extractsBullets: true,
     fields: [
       { key: 'title', label: 'Job title', placeholder: 'Senior Engineer' },
       { key: 'company', label: 'Company', placeholder: 'Acme Co.' },
@@ -55,6 +58,7 @@ const FORMS: Record<ExperienceType, FormDef> = {
     title: 'Add a project',
     primaryKey: 'name',
     descriptionKey: 'description',
+    extractsBullets: true,
     fields: [
       { key: 'name', label: 'Project name', placeholder: 'On-device CV pipeline' },
       { key: 'context', label: 'Your role / context', placeholder: 'Personal project' },
@@ -97,25 +101,31 @@ export function ItemFormScreen({ navigation, route }: Props) {
   const setField = (key: string, v: string) => setValues((prev) => ({ ...prev, [key]: v }));
 
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const structuredFields: Record<string, string> = {};
       for (const f of form.fields) {
         const v = values[f.key]?.trim();
         if (v) structuredFields[f.key] = v;
       }
       const rawInput = form.descriptionKey ? (values[form.descriptionKey]?.trim() ?? '') : '';
-      return addExperienceItem({ type, structuredFields, rawInput });
+      const item = await addExperienceItem({ type, structuredFields, rawInput });
+      // Roles/projects with a description → extract suggested bullets to review.
+      const extracted = !!form.extractsBullets && rawInput.length > 0;
+      if (extracted) await extractBulletsForItem(item.id);
+      return { itemId: item.id, extracted };
     },
-    onSuccess: async (item) => {
+    onSuccess: async ({ itemId, extracted }) => {
       await queryClient.invalidateQueries({ queryKey: ['bank'] });
-      logger.info('bank item created', { type });
-      navigation.replace('ItemDetail', { itemId: item.id });
+      logger.info('bank item created', { type, extracted });
+      navigation.replace(extracted ? 'BulletReview' : 'ItemDetail', { itemId });
     },
     onError: (err) => {
       logger.warn('bank item create failed', { type });
       setDialog(errorToCopy(err));
     },
   });
+
+  const saveLabel = form.extractsBullets ? 'Save and extract bullets' : 'Save';
 
   const canSave = (values[form.primaryKey]?.trim().length ?? 0) > 0 && !mutation.isPending;
 
@@ -154,7 +164,7 @@ export function ItemFormScreen({ navigation, route }: Props) {
       ))}
 
       <Button
-        label="Save"
+        label={saveLabel}
         onPress={() => mutation.mutate()}
         loading={mutation.isPending}
         disabled={!canSave}
