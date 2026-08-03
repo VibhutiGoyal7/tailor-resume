@@ -12,6 +12,7 @@ import type {
   ExtractFromTextInput,
   ResumeBasicsView,
   UpdateBulletInput,
+  UpdateResumeBasicsInput,
 } from '@tailor/shared-types';
 
 /** GET /bank — all items grouped by type (role/project/education/skill). */
@@ -71,4 +72,9 @@ export function importResume(file: UploadFile): Promise<ExperienceItemView[]> {
 /** GET /bank/basics — the user's resume basics, or null if not set yet. */
 export function getResumeBasics(): Promise<ResumeBasicsView | null> {
   return apiRequest<ResumeBasicsView | null>('/bank/basics', { method: 'GET' });
+}
+
+/** PUT /bank/basics — upsert the user's resume basics; returns the saved record. */
+export function updateResumeBasics(input: UpdateResumeBasicsInput): Promise<ResumeBasicsView> {
+  return apiRequest<ResumeBasicsView>('/bank/basics', { method: 'PUT', body: input });
 }

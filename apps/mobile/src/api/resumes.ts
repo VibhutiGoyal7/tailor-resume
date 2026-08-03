@@ -8,3 +8,8 @@ import type { TailoredResumeSummary } from '@tailor/shared-types';
 export function listResumes(): Promise<TailoredResumeSummary[]> {
   return apiRequest<TailoredResumeSummary[]>('/resumes', { method: 'GET' });
 }
+
+/** DELETE /resumes/:id — remove a tailored resume and its export files (204). */
+export function deleteResume(id: string): Promise<void> {
+  return apiRequest<void>(`/resumes/${id}`, { method: 'DELETE' });
+}

@@ -39,6 +39,25 @@ export type AppTabsParamList = {
   Profile: undefined;
 };
 
+// Resumes tab (a stack): the tailoring history list → a resume's detail (source-
+// traced bullets, edit-layout / export / delete). Edit-layout and export push the
+// existing full-screen tailoring-flow screens on the root stack, above the tabs.
+export type ResumesStackParamList = {
+  ResumesList: undefined;
+  ResumeDetail: { resumeId: string };
+};
+
+// Profile tab (a stack): the settings list → the designed sub-screens (resume
+// basics, how-this-works) and a shared placeholder for the rows without a finalized
+// design yet (account details, password, notifications, legal & privacy — flagged
+// for the owner in the build brief §8).
+export type ProfileStackParamList = {
+  ProfileSettings: undefined;
+  ResumeBasics: undefined;
+  HowThisWorks: undefined;
+  ProfilePlaceholder: { title: string; note: string };
+};
+
 // Experience Bank flow (the Bank tab is a stack): list → add-entry choice →
 // (manual) type picker → the per-type form; and list/detail for an existing item.
 // The two extraction paths (write-about-it, import) are gated on the LLM

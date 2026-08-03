@@ -5,8 +5,8 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { HomeScreen } from '../screens/HomeScreen';
 import { BankStack } from './BankStack';
-import { ResumesScreen } from '../screens/ResumesScreen';
-import { ProfileScreen } from '../screens/ProfileScreen';
+import { ResumesStack } from './ResumesStack';
+import { ProfileStack } from './ProfileStack';
 import { colors, typography } from '../theme/tokens';
 import { TabIcon } from './TabIcon';
 import type { AppTabsParamList } from './types';
@@ -27,8 +27,8 @@ export function AppTabs() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Bank" component={BankStack} options={{ tabBarLabel: 'Bank' }} />
-      <Tab.Screen name="Resumes" component={ResumesScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Resumes" component={ResumesStack} />
+      <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
   );
 }
