@@ -46,6 +46,7 @@ import {
   reconcileGeneratedResume,
   selectKeptCandidates,
 } from './generation.js';
+import { computeMatchScore } from './match-score.js';
 
 /** Kebab-case a name for a download filename; empty → falls back at the call site. */
 function slug(s: string): string {
@@ -120,6 +121,7 @@ function toTailoredResumeView(resume: {
   hiddenSections: string[];
   layoutVariantId: string | null;
   exportFiles: unknown;
+  matchScore: number | null;
   createdAt: Date;
 }): TailoredResumeView {
   const templateId = resume.templateId as TemplateId;
@@ -133,6 +135,7 @@ function toTailoredResumeView(resume: {
     hiddenSections: resume.hiddenSections as ResumeSection[],
     layoutVariantId: resume.layoutVariantId ?? DEFAULT_LAYOUT_VARIANT[templateId],
     availableFormats: EXPORT_FORMATS.filter((f) => exportFiles[f]),
+    matchScore: resume.matchScore,
     createdAt: resume.createdAt.toISOString(),
   };
 }
@@ -393,6 +396,14 @@ export const resumeEngine = {
         (resume.retrievedCandidates as unknown as RetrievedCandidateView[] | null) ?? [];
 
       const candidates = selectKeptCandidates(retrievedCandidates, keptCandidateIds);
+      // Match score (0–100) over the kept candidates, which retain their hybrid
+      // scores in the retrieved snapshot. The signature RAG output, persisted for
+      // the result dial and the history badge (project doc §9b).
+      const keptSet = new Set(keptCandidateIds);
+      const matchScore = computeMatchScore(
+        jdParsed,
+        retrievedCandidates.filter((c) => keptSet.has(c.bulletId)),
+      );
       const basics = await profileModule.getResumeBasics(job.userId);
       const input = buildGenerationInput(jdParsed, candidates, {
         fullName: basics?.fullName,
@@ -442,6 +453,7 @@ export const resumeEngine = {
           data: {
             renderedContent: rendered as unknown as Prisma.InputJsonValue,
             exportFiles: exportFiles as unknown as Prisma.InputJsonValue,
+            matchScore,
           },
         });
         await tx.tailoringJob.update({
@@ -451,7 +463,7 @@ export const resumeEngine = {
       });
 
       logger.info(
-        { jobId, bulletCount: rendered.bullets.length, formats: Object.keys(exportFiles) },
+        { jobId, bulletCount: rendered.bullets.length, matchScore, formats: Object.keys(exportFiles) },
         'generate stage complete; renderedContent + exports persisted, stage -> done',
       );
     } catch (err) {
@@ -472,7 +484,14 @@ export const resumeEngine = {
     const rows = await prisma.tailoredResume.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, templateId: true, jdParsed: true, exportFiles: true, createdAt: true },
+      select: {
+        id: true,
+        templateId: true,
+        jdParsed: true,
+        exportFiles: true,
+        matchScore: true,
+        createdAt: true,
+      },
     });
     return rows.map((r) => {
       const jd = r.jdParsed as unknown as JdParsed;
@@ -484,6 +503,7 @@ export const resumeEngine = {
         companyType: jd.company_type,
         seniority: jd.seniority,
         availableFormats: EXPORT_FORMATS.filter((f) => exportFiles[f]),
+        matchScore: r.matchScore,
         createdAt: r.createdAt.toISOString(),
       };
     });
