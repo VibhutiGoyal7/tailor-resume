@@ -18,7 +18,7 @@ import {
   BorderStyle,
 } from 'docx';
 import type { RenderInput } from '@tailor/modules';
-import type { ResumeSection } from '@tailor/shared-types';
+import type { BulletSection, ResumeSection } from '@tailor/shared-types';
 import {
   contactLine,
   sidebarOnRight,
@@ -80,20 +80,28 @@ export async function renderDocx(input: RenderInput): Promise<Buffer> {
   const summaryBlock = input.content.summary
     ? [heading('Summary'), body(input.content.summary)]
     : [];
-  const experienceBlock = [
-    heading('Experience'),
-    ...input.content.bullets.map((b) => bullet(b.text)),
-  ];
+
+  // The three bullet sections (Experience / Projects / Education): each is the
+  // tailored bullets filed under it (legacy bullets with no section → Experience).
+  // An empty section yields no paragraphs, so it drops out of the document.
+  const bulletBlock = (label: string, section: BulletSection): Paragraph[] => {
+    const items = input.content.bullets.filter((b) => (b.section ?? 'experience') === section);
+    return items.length > 0 ? [heading(label), ...items.map((b) => bullet(b.text))] : [];
+  };
+  const experienceBlock = bulletBlock('Experience', 'experience');
+  const projectsBlock = bulletBlock('Projects', 'projects');
+  const educationBlock = bulletBlock('Education', 'education');
   const skillsBlock =
     input.skills.length > 0 ? [heading('Skills'), ...input.skills.map((sk) => body(sk))] : [];
 
   // Layout customization (Milestone 7): honor the section order + hidden set, so
-  // DOCX matches the PDF. `experience` always has content; summary/skills blocks
-  // are empty when there's nothing to show.
+  // DOCX matches the PDF. Any section with no content contributes no paragraphs.
   const blockFor: Record<ResumeSection, Paragraph[]> = {
     summary: summaryBlock,
     skills: skillsBlock,
     experience: experienceBlock,
+    projects: projectsBlock,
+    education: educationBlock,
   };
   const visible = visibleSections(input.sectionOrder, input.hiddenSections);
   const inOrder = (sections: ResumeSection[]) => sections.flatMap((sec) => blockFor[sec]);

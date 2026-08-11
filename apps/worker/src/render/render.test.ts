@@ -97,3 +97,53 @@ describe('layout customization (Milestone 7)', () => {
     expect(hidden.equals(full)).toBe(false);
   });
 });
+
+// The bullets carry a `section` (Experience / Projects / Education) so the renderers
+// emit those as separate headings; an empty section is dropped.
+describe('first-class Projects / Education sections', () => {
+  const mixed: RenderedResume = {
+    ...content,
+    bullets: [
+      {
+        sourceBulletId: 'b1',
+        experienceItemId: 'i1',
+        text: 'Led the platform.',
+        section: 'experience',
+      },
+      {
+        sourceBulletId: 'b2',
+        experienceItemId: 'i2',
+        text: 'Shipped a side project.',
+        section: 'projects',
+      },
+      { sourceBulletId: 'b3', experienceItemId: 'i3', text: 'Studied CS.', section: 'education' },
+    ],
+  };
+
+  it('renders separate headings (larger than the same bullets all under Experience)', async () => {
+    const grouped = await renderPdf(input({ templateId: 'ats', content: mixed }));
+    const flat = await renderPdf(
+      input({
+        templateId: 'ats',
+        content: {
+          ...mixed,
+          bullets: mixed.bullets.map((b) => ({ ...b, section: 'experience' as const })),
+        },
+      }),
+    );
+    expect(grouped.equals(flat)).toBe(false);
+    // Two extra section headings (Projects, Education) → a larger document.
+    expect(grouped.length).toBeGreaterThan(flat.length);
+  });
+
+  it('hiding Projects removes it from the DOCX', async () => {
+    const withProjects = await renderDocx(
+      input({ format: 'docx', templateId: 'ats', content: mixed }),
+    );
+    const without = await renderDocx(
+      input({ format: 'docx', templateId: 'ats', content: mixed, hiddenSections: ['projects'] }),
+    );
+    expect(without.equals(withProjects)).toBe(false);
+    expect(without.length).toBeLessThan(withProjects.length);
+  });
+});

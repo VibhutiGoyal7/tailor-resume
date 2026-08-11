@@ -17,7 +17,9 @@ import {
   EXPORT_FORMATS,
   isValidLayoutVariant,
   resolveSectionOrder,
+  sectionForItemType,
   suggestTemplateId,
+  type BulletSection,
   type ExportFormat,
   type JdParsed,
   type JobStage,
@@ -418,6 +420,17 @@ export const resumeEngine = {
         new Set(candidates.flatMap((c) => c.tags.map((t) => t.trim())).filter(Boolean)),
       );
 
+      // File each bullet under its resume section (Experience / Projects / Education)
+      // by the kind of its source Experience item, so Projects/Education render as
+      // their own sections. Item kinds come through the profile facade (ADR-008 — the
+      // engine never queries profile's tables directly).
+      const bank = await profileModule.getExperienceBank(job.userId);
+      const sectionByItemId = new Map<string, BulletSection>();
+      for (const [type, items] of Object.entries(bank)) {
+        const section = sectionForItemType(type);
+        for (const it of items) sectionByItemId.set(it.id, section);
+      }
+
       const generated = await getResumeGenerator().generate(input);
       const rendered: RenderedResume = reconcileGeneratedResume(
         generated,
@@ -425,6 +438,7 @@ export const resumeEngine = {
         resume.templateId,
         input.maxBullets,
         skills,
+        sectionByItemId,
       );
 
       // Render the export files (PDF + DOCX) and store them (ADR-012). The renderer
@@ -464,7 +478,12 @@ export const resumeEngine = {
       });
 
       logger.info(
-        { jobId, bulletCount: rendered.bullets.length, matchScore, formats: Object.keys(exportFiles) },
+        {
+          jobId,
+          bulletCount: rendered.bullets.length,
+          matchScore,
+          formats: Object.keys(exportFiles),
+        },
         'generate stage complete; renderedContent + exports persisted, stage -> done',
       );
     } catch (err) {

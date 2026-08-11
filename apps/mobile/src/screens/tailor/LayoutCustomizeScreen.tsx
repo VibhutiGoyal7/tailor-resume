@@ -2,16 +2,13 @@
 // the resume's sections, tap the eye to hide one, and pick one- vs two-column, then
 // "Apply changes" (PATCH /resumes/:id/layout) and move on to export.
 //
-// DESIGN↔CONTRACT NOTE (flagged, CLAUDE.md §8): the design mocks five rows (Summary,
-// Experience, Projects, Education, Skills), but the rendered-resume model + the
-// layout contract (RESUME_SECTIONS) only has three reorderable/hideable sections —
-// summary, skills, experience (projects/education collapse into experience bullets;
-// there's no separate education block in renderedContent). Building UI for sections
-// the backend can't reorder would be non-functional, so this screen binds to the
-// real three. The one-/two-column toggle maps to the template's layout family
-// (two-column → the `modern` template; one-column → a single-column template),
-// since `template.layout` is exactly that distinction. Raised for the owner to
-// decide whether the content model should grow to first-class projects/education.
+// The five sections (Summary, Experience, Projects, Education, Skills) are all
+// first-class in the content model now: Experience/Projects/Education each render the
+// tailored bullets whose source Experience item is of that kind (RESUME_SECTIONS /
+// sectionForItemType). A section with no bullets is still reorderable/hideable here
+// but simply renders nothing in the export. The one-/two-column toggle maps to the
+// template's layout family (two-column → the `modern` template; one-column → a
+// single-column template), since `template.layout` is exactly that distinction.
 import { useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useMutation } from '@tanstack/react-query';
@@ -41,6 +38,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'LayoutCustomize'>;
 const SECTION_LABEL: Record<ResumeSection, string> = {
   summary: 'Summary',
   experience: 'Experience',
+  projects: 'Projects',
+  education: 'Education',
   skills: 'Skills',
 };
 

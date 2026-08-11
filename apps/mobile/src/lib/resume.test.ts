@@ -53,8 +53,12 @@ function item(
     bullets: [],
   };
 }
-function bullet(text: string, experienceItemId: string): RenderedBullet {
-  return { text, experienceItemId, sourceBulletId: `b-${text}` };
+function bullet(
+  text: string,
+  experienceItemId: string,
+  section?: RenderedBullet['section'],
+): RenderedBullet {
+  return { text, experienceItemId, sourceBulletId: `b-${text}`, section };
 }
 
 describe('groupResumeBullets', () => {
@@ -75,6 +79,15 @@ describe('groupResumeBullets', () => {
     expect(groups[1]!.bullets).toEqual([
       { text: 'Shipped rewrite', source: 'On-device CV pipeline' },
     ]);
+  });
+
+  it('uses the persisted section field when present, over the source item type', () => {
+    // A bullet whose source item is a role but which was filed under projects.
+    const groups = groupResumeBullets([bullet('Filed as project', 'r1', 'projects')], items);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.label).toBe('PROJECTS');
+    // Source label still comes from the resolved item.
+    expect(groups[0]!.bullets[0]!.source).toBe('Senior Engineer, Acme Co.');
   });
 
   it('folds bullets with an unresolved source into EXPERIENCE with a generic label', () => {

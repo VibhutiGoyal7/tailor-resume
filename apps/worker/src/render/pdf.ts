@@ -4,7 +4,7 @@
 import { createElement as h } from 'react';
 import { Document, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
 import type { RenderInput } from '@tailor/modules';
-import type { ResumeSection } from '@tailor/shared-types';
+import type { BulletSection, ResumeSection } from '@tailor/shared-types';
 import {
   contactLine,
   sidebarOnRight,
@@ -56,19 +56,29 @@ function buildDocument(input: RenderInput) {
     ? h(View, { style: s.section }, headingEl('Summary'), h(Text, {}, input.content.summary))
     : null;
 
-  const experienceEl = h(
-    View,
-    { style: s.section },
-    headingEl('Experience'),
-    ...input.content.bullets.map((b, i) =>
-      h(
-        View,
-        { style: s.bullet, key: `b${i}` },
-        h(Text, { style: s.bulletDot }, '•'),
-        h(Text, { style: s.bulletText }, b.text),
+  // The three bullet sections (Experience / Projects / Education): each renders the
+  // tailored bullets filed under it (legacy bullets with no section → Experience).
+  // A section with no bullets renders nothing.
+  const bulletSectionEl = (label: string, section: BulletSection, keyPrefix: string) => {
+    const items = input.content.bullets.filter((b) => (b.section ?? 'experience') === section);
+    if (items.length === 0) return null;
+    return h(
+      View,
+      { style: s.section },
+      headingEl(label),
+      ...items.map((b, i) =>
+        h(
+          View,
+          { style: s.bullet, key: `${keyPrefix}${i}` },
+          h(Text, { style: s.bulletDot }, '•'),
+          h(Text, { style: s.bulletText }, b.text),
+        ),
       ),
-    ),
-  );
+    );
+  };
+  const experienceEl = bulletSectionEl('Experience', 'experience', 'be');
+  const projectsEl = bulletSectionEl('Projects', 'projects', 'bp');
+  const educationEl = bulletSectionEl('Education', 'education', 'bd');
 
   const skillsEl =
     input.skills.length > 0
@@ -90,6 +100,8 @@ function buildDocument(input: RenderInput) {
     summary: summaryEl,
     skills: skillsEl,
     experience: experienceEl,
+    projects: projectsEl,
+    education: educationEl,
   };
   const inOrder = (sections: ResumeSection[]) =>
     sections.map((sec) => sectionEl[sec]).filter((el): el is ReturnType<typeof h> => el !== null);

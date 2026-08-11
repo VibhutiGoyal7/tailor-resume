@@ -42,14 +42,10 @@ export interface ResumeBulletGroup {
   bullets: { text: string; source: string }[];
 }
 
-// Map a source Experience item's type to the detail screen's section heading. Roles
-// (and anything whose source is unknown) fall under EXPERIENCE; projects/education
-// get their own headings — matching the EXPERIENCE / PROJECTS split the design shows
-// (screens/tailor_screen_resume_detail.svg), driven by each bullet's real source
-// trace rather than a fabricated split. (This is the same three-section content
-// model flagged for the owner in the build brief §8 — projects/education aren't
-// first-class blocks in renderedContent, so the grouping is derived from the source
-// items, not stored on the resume.)
+// The detail screen's bullet-section headings, in display order. `experience`,
+// `projects`, and `education` are the first-class bullet sections of the content
+// model (RenderedBullet.section / RESUME_SECTIONS); `types` is the fallback mapping
+// for legacy resumes generated before `section` was persisted.
 const SECTIONS: { key: string; label: string; types: string[] }[] = [
   { key: 'experience', label: 'EXPERIENCE', types: ['role'] },
   { key: 'projects', label: 'PROJECTS', types: ['project'] },
@@ -57,10 +53,11 @@ const SECTIONS: { key: string; label: string; types: string[] }[] = [
 ];
 
 /**
- * Group a resume's rendered bullets into display sections by the type of the
- * Experience item each one traces back to, attaching a human "from: …" source label
- * (screens/tailor_screen_resume_detail.svg). Bullets whose source item can't be
- * resolved (e.g. it was later deleted) fall under EXPERIENCE with a generic label.
+ * Group a resume's rendered bullets into display sections, attaching a human
+ * "from: …" source label (screens/tailor_screen_resume_detail.svg). A bullet's
+ * section comes from its persisted `section` field; for legacy resumes without one
+ * it falls back to the kind of the Experience item it traces to. Bullets whose
+ * source item can't be resolved (e.g. it was deleted) keep a generic source label.
  * Only non-empty sections are returned, in EXPERIENCE → PROJECTS → EDUCATION order.
  */
 export function groupResumeBullets(
@@ -77,7 +74,8 @@ export function groupResumeBullets(
   for (const bullet of bullets) {
     const item = itemsById.get(bullet.experienceItemId);
     const source = item ? itemCardText(item).title : 'your experience bank';
-    byKey.get(keyForType(item?.type))!.bullets.push({ text: bullet.text, source });
+    const key = bullet.section ?? keyForType(item?.type);
+    byKey.get(key)!.bullets.push({ text: bullet.text, source });
   }
 
   return SECTIONS.map((s) => byKey.get(s.key)!).filter((g) => g.bullets.length > 0);

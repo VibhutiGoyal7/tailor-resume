@@ -70,10 +70,47 @@ describe('reconcileGeneratedResume', () => {
     expect(rendered.summary).toBe('A tailored summary.');
     expect(rendered.templateId).toBe('ats');
     expect(rendered.bullets).toEqual([
-      { sourceBulletId: 'b1', experienceItemId: 'i1', text: 'Led the platform build.' },
+      {
+        sourceBulletId: 'b1',
+        experienceItemId: 'i1',
+        text: 'Led the platform build.',
+        // No section map passed → defaults to the experience section.
+        section: 'experience',
+      },
     ]);
     // Skills are carried into the rendered content for later re-render (M7).
     expect(rendered.skills).toEqual(['Go', 'Kubernetes']);
+  });
+
+  it('files each bullet under the section of its source item (projects/education)', () => {
+    const generated: GeneratedResume = {
+      summary: 's',
+      bullets: [
+        { sourceBulletId: 'b1', text: 'Ran the platform.' },
+        { sourceBulletId: 'b2', text: 'Shipped a side project.' },
+      ],
+    };
+    // b1 → item i1 (a role → experience); b2 → item i2 (a project → projects).
+    const sectionByItemId = new Map<string, 'experience' | 'projects' | 'education'>([
+      ['i1', 'experience'],
+      ['i2', 'projects'],
+    ]);
+    const cands = selectKeptCandidates(
+      [
+        { bulletId: 'b1', experienceItemId: 'i1', text: 'x', tags: [], score: 1 },
+        { bulletId: 'b2', experienceItemId: 'i2', text: 'y', tags: [], score: 1 },
+      ],
+      ['b1', 'b2'],
+    );
+    const rendered = reconcileGeneratedResume(
+      generated,
+      cands,
+      'ats',
+      undefined,
+      [],
+      sectionByItemId,
+    );
+    expect(rendered.bullets.map((b) => b.section)).toEqual(['experience', 'projects']);
   });
 
   it('drops hallucinated source ids and blank rewrites', () => {

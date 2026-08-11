@@ -46,12 +46,20 @@ describe('suggestTemplateId (ADR-012 rule-based)', () => {
 
 describe('layout customization contracts (Milestone 7)', () => {
   it('resolveSectionOrder fills an empty/partial order to the full default set', () => {
-    expect(resolveSectionOrder([])).toEqual(['summary', 'skills', 'experience']);
+    expect(resolveSectionOrder([])).toEqual([
+      'summary',
+      'skills',
+      'experience',
+      'projects',
+      'education',
+    ]);
     // Keeps given order, appends missing in default position, drops unknowns.
     expect(resolveSectionOrder(['experience', 'bogus'])).toEqual([
       'experience',
       'summary',
       'skills',
+      'projects',
+      'education',
     ]);
     // The result is always a permutation of the known sections.
     expect(resolveSectionOrder(['skills']).sort()).toEqual([...RESUME_SECTIONS].sort());

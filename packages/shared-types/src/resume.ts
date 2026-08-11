@@ -128,13 +128,51 @@ export function suggestTemplateId(jd: Pick<JdParsed, 'company_type'>): TemplateI
  * The reorderable / hideable body sections of a rendered resume. The contact
  * header (name + contact line) is always rendered and is not part of this set.
  * In the two-column `modern` template, `skills` is pinned to the sidebar and the
- * order below governs the main column (summary / experience).
+ * order below governs the main column (summary / experience / projects / education).
+ * `experience`, `projects`, and `education` each render the tailored bullets whose
+ * source Experience item is of that kind (see `BULLET_SECTIONS` / `sectionForItemType`);
+ * an empty one (no bullets of that kind) is skipped by the renderers.
  */
-export const RESUME_SECTIONS = ['summary', 'skills', 'experience'] as const;
+export const RESUME_SECTIONS = [
+  'summary',
+  'skills',
+  'experience',
+  'projects',
+  'education',
+] as const;
 export type ResumeSection = (typeof RESUME_SECTIONS)[number];
 
-/** Default section order when the user hasn't customized it. */
-export const DEFAULT_SECTION_ORDER: ResumeSection[] = ['summary', 'skills', 'experience'];
+/**
+ * Default section order when the user hasn't customized it. Kept identical to
+ * `RESUME_SECTIONS` order so it equals `resolveSectionOrder([])` for a fresh resume.
+ */
+export const DEFAULT_SECTION_ORDER: ResumeSection[] = [
+  'summary',
+  'skills',
+  'experience',
+  'projects',
+  'education',
+];
+
+/**
+ * The sections a rendered *bullet* can belong to — the subset of RESUME_SECTIONS
+ * that carries generated bullets (summary and skills are not bullet sections). Each
+ * tailored bullet is filed under one of these based on the kind of Experience item
+ * it traces back to, so Projects/Education render as their own resume sections.
+ */
+export const BULLET_SECTIONS = ['experience', 'projects', 'education'] as const;
+export type BulletSection = (typeof BULLET_SECTIONS)[number];
+
+/**
+ * Map an Experience item's `type` to the resume section its bullets render under:
+ * projects → Projects, education → Education, everything else (roles, and any
+ * unknown/legacy type) → Experience.
+ */
+export function sectionForItemType(type: string | undefined): BulletSection {
+  if (type === 'project') return 'projects';
+  if (type === 'education') return 'education';
+  return 'experience';
+}
 
 /**
  * Normalize a stored section order into a full, valid ordering: drop unknown
@@ -313,6 +351,13 @@ export interface RenderedBullet {
   /** The bullet's parent Experience item (per-bullet source trace, build brief §5). */
   experienceItemId: string;
   text: string;
+  /**
+   * Which resume section this bullet renders under (`sectionForItemType` of the
+   * source item's kind). Optional for backward-compatibility: resumes generated
+   * before first-class Projects/Education shipped have no section — consumers treat
+   * a missing value as `experience`.
+   */
+  section?: BulletSection;
 }
 
 /**

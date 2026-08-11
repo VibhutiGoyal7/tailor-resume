@@ -2,7 +2,12 @@
 // generator-input construction and the grounding-reconciliation of the model's
 // output are unit-tested in isolation. The facade's runGenerateStage wires these
 // to the real generator and persists the result.
-import type { GeneratedResume, RenderedResume, RetrievedCandidateView } from '@tailor/shared-types';
+import type {
+  BulletSection,
+  GeneratedResume,
+  RenderedResume,
+  RetrievedCandidateView,
+} from '@tailor/shared-types';
 import type { GenerationCandidate, GenerationInput } from './generator.js';
 
 /**
@@ -45,9 +50,11 @@ export function buildGenerationInput(
  * Reconcile raw generator output into the persisted RenderedResume (ADR-004 —
  * grounding). Drops any bullet whose `sourceBulletId` isn't a kept candidate (so
  * a hallucinated ref can't slip through), attaches the real `experienceItemId`
- * for the per-bullet source trace (build brief §5), dedupes by source bullet
- * (keeping the first rewrite), and caps at `maxBullets`. Text is trimmed; blank
- * rewrites are dropped.
+ * for the per-bullet source trace (build brief §5), files each bullet under its
+ * resume section (`sectionByItemId`, so Projects/Education render separately),
+ * dedupes by source bullet (keeping the first rewrite), and caps at `maxBullets`.
+ * Text is trimmed; blank rewrites are dropped. When `sectionByItemId` is omitted a
+ * bullet defaults to the `experience` section.
  */
 export function reconcileGeneratedResume(
   generated: GeneratedResume,
@@ -55,6 +62,7 @@ export function reconcileGeneratedResume(
   templateId: string,
   maxBullets: number = MAX_GENERATED_BULLETS,
   skills: string[] = [],
+  sectionByItemId?: Map<string, BulletSection>,
 ): RenderedResume {
   const byId = new Map(candidates.map((c) => [c.bulletId, c]));
   const seen = new Set<string>();
@@ -68,6 +76,7 @@ export function reconcileGeneratedResume(
       sourceBulletId: source.bulletId,
       experienceItemId: source.experienceItemId,
       text,
+      section: sectionByItemId?.get(source.experienceItemId) ?? 'experience',
     });
     if (bullets.length >= maxBullets) break;
   }
