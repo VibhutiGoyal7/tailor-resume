@@ -4,6 +4,7 @@
 // action (cascades all user-owned rows, then the app clears the local session).
 import { apiRequest } from './client';
 import type { AccountView } from '@tailor/shared-types';
+import type { StoredTokens } from './tokenStore';
 
 /** GET /account — the signed-in user's account details (email, verified, joined). */
 export function getAccount(): Promise<AccountView> {
@@ -12,11 +13,15 @@ export function getAccount(): Promise<AccountView> {
 
 /**
  * PATCH /account/password — change the password (verifies the current one server-side).
- * Note: the backend revokes the user's refresh tokens, so the session ends afterward —
- * the Password screen signs out on success.
+ * The backend ends every *other* session and returns a fresh token pair for this
+ * device, so the current session continues once the caller swaps to the new tokens
+ * (handled by AuthContext.changePassword).
  */
-export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
-  return apiRequest<void>('/account/password', {
+export function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<StoredTokens> {
+  return apiRequest<StoredTokens>('/account/password', {
     method: 'PATCH',
     body: { currentPassword, newPassword },
   });

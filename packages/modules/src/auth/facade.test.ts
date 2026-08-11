@@ -194,7 +194,7 @@ describe.skipIf(!runDb)('authModule (DB integration)', () => {
     expect(typeof account.createdAt).toBe('string');
   });
 
-  it('changePassword: wrong current fails; correct rotates password + revokes sessions', async () => {
+  it('changePassword: wrong current fails; correct rotates password, keeps this device, ends others', async () => {
     const user = await authModule.signup(creds);
     const { tokens } = await authModule.login(creds);
 
@@ -202,13 +202,18 @@ describe.skipIf(!runDb)('authModule (DB integration)', () => {
       authModule.changePassword(user.id, 'wrong-current', 'new-good-password'),
     ).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
 
-    await authModule.changePassword(user.id, creds.password, 'new-good-password');
+    const rotated = await authModule.changePassword(user.id, creds.password, 'new-good-password');
     await expect(
       authModule.login({ email: creds.email, password: 'new-good-password' }),
     ).resolves.toBeTruthy();
-    // Prior session revoked.
+    // Other sessions (the prior login) are revoked...
     await expect(authModule.refresh(tokens.refreshToken)).rejects.toMatchObject({
       code: 'UNAUTHENTICATED',
+    });
+    // ...but the pair returned to the calling device stays valid (it can refresh).
+    await expect(authModule.refresh(rotated.refreshToken)).resolves.toMatchObject({
+      accessToken: expect.any(String),
+      refreshToken: expect.any(String),
     });
   });
 

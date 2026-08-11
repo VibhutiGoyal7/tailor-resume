@@ -72,6 +72,12 @@ describe.skipIf(!runDb)('account routes — full flow (DB)', () => {
       req('PATCH', { currentPassword: password, newPassword: 'a-new-password' }, token),
     );
     expect(patchRes.status).toBe(200);
+    // The change returns a fresh token pair for this device (it stays signed in).
+    const rotated = await patchRes.json();
+    expect(rotated).toMatchObject({
+      accessToken: expect.any(String),
+      refreshToken: expect.any(String),
+    });
     // New password now logs in.
     expect((await login(req('POST', { email, password: 'a-new-password' }))).status).toBe(200);
 

@@ -2,9 +2,9 @@
 // design SVG exists for this row yet (flagged in the build brief §8), so it's built on
 // the established design system (header, TextField, Button, tokens). Client-side
 // checks mirror the backend policy; the server owns the "current password is
-// incorrect" check. The backend revokes all refresh tokens on success, so this signs
-// the user out everywhere — surfaced up front and on the success screen rather than
-// letting a later token refresh fail silently.
+// incorrect" check. On success the backend ends *other* sessions and rotates this
+// device's tokens (via AuthContext.changePassword), so the user stays signed in here
+// while other devices are logged out.
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useMutation } from '@tanstack/react-query';
@@ -16,7 +16,6 @@ import { TextField } from '../../components/ui/TextField';
 import { Button } from '../../components/ui/Button';
 import { ErrorDialog } from '../../components/ErrorDialog';
 import { useAuth } from '../../auth/AuthContext';
-import { changePassword } from '../../api/account';
 import { isApiRequestError } from '../../api/errors';
 import { validatePasswordChange, hasFieldErrors, type PasswordFieldErrors } from '../../lib/account';
 import { errorToCopy, type ErrorCopy } from '../../errors/errorCopy';
@@ -27,7 +26,7 @@ import type { ProfileStackParamList } from '../../navigation/types';
 type Props = NativeStackScreenProps<ProfileStackParamList, 'Password'>;
 
 export function PasswordScreen({ navigation }: Props) {
-  const { signOut } = useAuth();
+  const { changePassword } = useAuth();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -73,10 +72,10 @@ export function PasswordScreen({ navigation }: Props) {
         <View style={styles.doneBody}>
           <Text style={styles.doneTitle}>Your password is updated.</Text>
           <Text style={styles.doneText}>
-            For your security, you&apos;ve been signed out on all devices. Sign in again with your
-            new password.
+            You&apos;re still signed in on this device. For your security, any other devices have
+            been signed out.
           </Text>
-          <Button label="Sign in again" onPress={() => void signOut()} style={styles.doneCta} />
+          <Button label="Done" onPress={() => navigation.goBack()} style={styles.doneCta} />
         </View>
       </ScreenContainer>
     );
@@ -86,7 +85,7 @@ export function PasswordScreen({ navigation }: Props) {
     <ScreenContainer scroll>
       <ScreenHeader
         title="Password"
-        subtitle="Changing your password signs you out on all devices."
+        subtitle="Changing your password signs out your other devices."
         onBack={() => navigation.goBack()}
       />
 

@@ -243,24 +243,42 @@ export const authModule = {
     };
   },
 
-  /** Change password for an authenticated user; revokes all other sessions. */
+  /**
+   * Change password for an authenticated user. Ends every *other* session by
+   * revoking all existing refresh tokens, then mints a fresh pair for the calling
+   * device and returns it — so the device that changed the password stays signed in
+   * while all others are logged out (build brief §5: "revoke other sessions"). The
+   * caller must swap to the returned pair (its old refresh token is now revoked too).
+   */
   async changePassword(
     userId: string,
     currentPassword: string,
     newPassword: string,
-  ): Promise<void> {
+  ): Promise<TokenPair> {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new AppError('NOT_FOUND', 'Account not found.');
     if (!(await verifyPassword(user.passwordHash, currentPassword))) {
       throw new AppError('INVALID_CREDENTIALS', 'Your current password is incorrect.');
     }
     const passwordHash = await hashPassword(newPassword);
-    await prisma.$transaction(async (tx) => {
+    return prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: userId }, data: { passwordHash } });
+      // Revoke all existing sessions first, then issue this device's new pair so the
+      // new token isn't caught by the bulk revoke.
       await tx.refreshToken.updateMany({
         where: { userId, revoked: false },
         data: { revoked: true },
       });
+      const accessToken = await signAccessToken(userId, jwtSecret());
+      const refreshToken = generateRefreshToken();
+      await tx.refreshToken.create({
+        data: {
+          userId,
+          tokenHash: hashRefreshToken(refreshToken),
+          expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+        },
+      });
+      return { accessToken, refreshToken };
     });
   },
 

@@ -14,6 +14,7 @@ import {
 } from 'react';
 import { registerAuthBridge } from '../api/client';
 import * as authApi from '../api/auth';
+import { changePassword as changePasswordApi } from '../api/account';
 import {
   clearTokens,
   isFirstRunComplete,
@@ -34,6 +35,8 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Change the password and swap to the rotated session (stays signed in). */
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   completeFirstRun: (choice: FirstRunChoice) => void;
 }
 
@@ -95,6 +98,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // verified first (build brief §5). The UI then routes to "check your email".
         await authApi.signup(email, password);
         logger.info('signed up');
+      },
+      changePassword: async (currentPassword, newPassword) => {
+        // The backend ends other sessions and returns a fresh pair for this device;
+        // swap to it so the current session keeps working (its old token is revoked).
+        const tokens = await changePasswordApi(currentPassword, newPassword);
+        await saveTokens(tokens);
+        dispatch({ type: 'authenticated', tokens });
+        logger.info('password changed; session rotated');
       },
       signOut: async () => {
         const refreshToken = tokensRef.current?.refreshToken;
