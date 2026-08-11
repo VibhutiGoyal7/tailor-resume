@@ -24,16 +24,16 @@ import type { ProfileStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<ProfileStackParamList, 'ProfileSettings'>;
 
-// The settings rows, top to bottom as in the design. `to` names a designed
-// sub-screen; `placeholder` routes to the shared not-yet-designed screen with copy
-// specific to that row (build brief §8: these four rows lack a finalized design).
+// The settings rows, top to bottom as in the design. `to` names a real sub-screen;
+// `placeholder` routes to the shared not-yet-designed screen with row-specific copy
+// (Notifications is Phase-2 per build brief §5; Legal has no route/design yet).
 type Row =
-  | { label: string; to: 'ResumeBasics' | 'HowThisWorks' }
+  | { label: string; to: 'AccountDetails' | 'Password' | 'ResumeBasics' | 'HowThisWorks' }
   | { label: string; placeholder: string };
 
 const ROWS: Row[] = [
-  { label: 'Account details', placeholder: 'Your account details will live here.' },
-  { label: 'Password', placeholder: 'Changing your password will be available here soon.' },
+  { label: 'Account details', to: 'AccountDetails' },
+  { label: 'Password', to: 'Password' },
   {
     label: 'Notifications',
     placeholder: "Tailor doesn't send notifications yet — controls will appear here when it does.",

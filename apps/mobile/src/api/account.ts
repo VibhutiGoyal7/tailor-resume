@@ -10,6 +10,18 @@ export function getAccount(): Promise<AccountView> {
   return apiRequest<AccountView>('/account', { method: 'GET' });
 }
 
+/**
+ * PATCH /account/password — change the password (verifies the current one server-side).
+ * Note: the backend revokes the user's refresh tokens, so the session ends afterward —
+ * the Password screen signs out on success.
+ */
+export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return apiRequest<void>('/account/password', {
+    method: 'PATCH',
+    body: { currentPassword, newPassword },
+  });
+}
+
 /** DELETE /account — permanently delete the account and all its data (204). */
 export function deleteAccount(): Promise<void> {
   return apiRequest<void>('/account', { method: 'DELETE' });

@@ -53,6 +53,8 @@ export type ResumesStackParamList = {
 // for the owner in the build brief §8).
 export type ProfileStackParamList = {
   ProfileSettings: undefined;
+  AccountDetails: undefined;
+  Password: undefined;
   ResumeBasics: undefined;
   HowThisWorks: undefined;
   ProfilePlaceholder: { title: string; note: string };
